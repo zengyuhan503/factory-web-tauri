@@ -35,8 +35,7 @@
     ],
     "resources": [
       "resources/ProcessCal",
-      "resources/CheckResult",
-      "resources/tools"
+      "resources/CheckResult"
     ]
   }
 }
