@@ -35,7 +35,8 @@
       },
       "resources": [
         "resources/ProcessCal",
-        "resources/CheckResult"
+        "resources/CheckResult",
+        "resources/tools"
       ],
       "shortDescription": "SkyCalib VR设备标定工具",
       "targets": ["deb"],

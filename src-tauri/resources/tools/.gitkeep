@@ -1,0 +1,2 @@
+# Keep this directory in git, but ignore all actual files inside.
+# Place tool binaries here before building/packaging.
