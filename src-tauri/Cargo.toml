@@ -1,0 +1,34 @@
+[package]
+name = "skycalib-tauri"
+version = "2.0.0"
+description = "SkyCalib VR设备标定工具 - Tauri版"
+authors = ["Skyworth XR"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "skycalib_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.2", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.2", features = [] }
+tauri-plugin-store = "2"
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+reqwest = { version = "0.12", features = ["json", "multipart"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1"
+anyhow = "1"
+log = "0.4"
+env_logger = "0.11"
+base64 = "0.22"
+regex = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
