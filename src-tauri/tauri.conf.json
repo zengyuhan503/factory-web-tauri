@@ -38,7 +38,7 @@
         "resources/CheckResult"
       ],
       "shortDescription": "SkyCalib VR设备标定工具",
-      "targets": ["appimage", "deb"],
+      "targets": ["deb"],
       "windows": {
         "certificateThumbprint": null,
         "digestAlgorithm": "sha256",
