@@ -7,7 +7,7 @@ use crate::utils::paths::get_device_work_dir;
 use crate::utils::verify::{check_thresholds, verify_coverage};
 use std::path::Path;
 use std::sync::Arc;
-use tauri::Emitter;
+use tauri::Manager;
 use tokio::time::{sleep, Duration};
 
 pub struct CalibrationEngine {
@@ -264,7 +264,7 @@ impl CalibrationEngine {
     }
 
     async fn emit_step(&self, step: CalibStep, app: &tauri::AppHandle) {
-        let _ = app.emit(
+        let _ = app.emit_all(
             &format!("device:{}:step", self.slot_id),
             serde_json::json!({
                 "slot_id": self.slot_id,
@@ -277,7 +277,7 @@ impl CalibrationEngine {
     }
 
     async fn emit_complete(&self, success: bool, oss_url: &str, app: &tauri::AppHandle) {
-        let _ = app.emit(
+        let _ = app.emit_all(
             &format!("device:{}:complete", self.slot_id),
             serde_json::json!({
                 "slot_id": self.slot_id,
@@ -321,7 +321,7 @@ impl CalibrationEngine {
                 self.config.is_rgb,
                 &self.config.qvr_type,
                 move |log| {
-                    let _ = app_clone.emit(
+                    let _ = app_clone.emit_all(
                         &format!("device:{}:log", slot_id),
                         serde_json::json!({
                             "slot_id": slot_id,
@@ -356,7 +356,7 @@ impl CalibrationEngine {
                 &self.config.qvr_type,
                 dataset_path,
                 move |log| {
-                    let _ = app_clone.emit(
+                    let _ = app_clone.emit_all(
                         &format!("device:{}:log", slot_id),
                         serde_json::json!({
                             "slot_id": slot_id,
@@ -387,7 +387,7 @@ impl CalibrationEngine {
 
         runner
             .run_convert_yaml(dataset_path, move |log| {
-                let _ = app_clone.emit(
+                let _ = app_clone.emit_all(
                     &format!("device:{}:log", slot_id),
                     serde_json::json!({
                         "slot_id": slot_id,
@@ -417,7 +417,7 @@ impl CalibrationEngine {
 
         let result = runner
             .run_check_result(dataset_path, move |log| {
-                let _ = app_clone.emit(
+                let _ = app_clone.emit_all(
                     &format!("device:{}:log", slot_id),
                     serde_json::json!({
                         "slot_id": slot_id,

@@ -4,18 +4,17 @@ version = "2.0.0"
 description = "SkyCalib VR设备标定工具 - Tauri版"
 authors = ["Skyworth XR"]
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.70"
 
 [lib]
 name = "skycalib_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.6.2", features = [] }
+tauri-build = { version = "1.5", features = [] }
 
 [dependencies]
-tauri = { version = "2.11.2", features = [] }
-tauri-plugin-store = "2"
+tauri = { version = "1.7", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }

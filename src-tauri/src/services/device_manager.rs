@@ -2,7 +2,7 @@ use crate::adapters::adb::AdbExecutor;
 use crate::adapters::adb::list_devices;
 use crate::models::{DeviceSlot, SlotStatus};
 use std::sync::Arc;
-use tauri::Emitter;
+use tauri::Manager;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 
@@ -39,7 +39,7 @@ impl DeviceManager {
                                 slot.hint = "".to_string();
                                 slot.result = crate::models::SlotResult::Pending;
 
-                                let _ = app.emit(
+                                let _ = app.emit_all(
                                     &format!("device:{}:disconnected", slot.slot_id),
                                     (),
                                 );
@@ -83,7 +83,7 @@ impl DeviceManager {
                                     slot.step_name = "已连接".to_string();
                                     slot.hint = "点击启动按钮开始标定".to_string();
 
-                                    let _ = app.emit(
+                                    let _ = app.emit_all(
                                         &format!("device:{}:connected", slot.slot_id),
                                         serde_json::json!({
                                             "serial": device.serial,

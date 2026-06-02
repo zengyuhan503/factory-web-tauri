@@ -4,7 +4,7 @@ use crate::services::calibration_engine::CalibrationEngine;
 use crate::utils::logger::DeviceTestLogger;
 use crate::utils::paths::get_resource_dir;
 use std::sync::Arc;
-use tauri::Emitter;
+use tauri::Manager;
 use tokio::sync::Mutex;
 
 pub struct CalibrationPool {
@@ -96,7 +96,7 @@ impl CalibrationPool {
                         };
                     }
 
-                    let _ = app.emit(
+                    let _ = app.emit_all(
                         &format!("device:{}:error", slot_id),
                         serde_json::json!({
                             "slot_id": slot_id,

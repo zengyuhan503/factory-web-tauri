@@ -10,5 +10,5 @@ pub fn get_device_work_dir(serial: &str) -> PathBuf {
 }
 
 pub fn get_resource_dir(app_handle: &tauri::AppHandle) -> PathBuf {
-    app_handle.path().resource_dir().unwrap_or_else(|_| PathBuf::from("."))
+    app_handle.path_resolver().resource_dir().unwrap_or_else(|| PathBuf::from("."))
 }

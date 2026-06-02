@@ -7,11 +7,10 @@ pub mod state;
 pub mod utils;
 
 use state::AppState;
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
             let app_state = AppState::new(9);
             app.manage(app_state.clone());
