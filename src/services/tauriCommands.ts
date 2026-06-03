@@ -39,7 +39,7 @@ export interface DeviceSlot {
 }
 
 export async function startDeviceTest(slotId: number, config: DeviceConfig): Promise<void> {
-  await invoke('start_device_test', { slotId, config });
+  await invoke('start_device_test', { slot_id: slotId, config });
 }
 
 export async function getSlotStatus(): Promise<DeviceSlot[]> {
