@@ -18,8 +18,13 @@ pub struct PythonResult {
 
 impl PythonRunner {
     pub fn new(serial: String, resource_dir: PathBuf) -> Self {
+        let python_path = if cfg!(target_os = "linux") {
+            "python3".to_string()
+        } else {
+            "python".to_string()
+        };
         Self {
-            python_path: "python".to_string(),
+            python_path,
             resource_dir,
             serial,
         }
