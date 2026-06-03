@@ -12,8 +12,6 @@
     python analyze_sfr50.py --input sfr_metrics.csv --summary sfr50_summary.csv --mean-avg50-min-pass 0.18 --cam-std-max-pass 0.05
 """
 
-from __future__ import annotations
-
 import argparse
 import csv
 import math

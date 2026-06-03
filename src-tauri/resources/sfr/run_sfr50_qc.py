@@ -24,8 +24,6 @@ r"""
    python run_sfr50_qc.py E:\BaiduNetdiskDownload\data\6cam --pattern-hint 9x9 --mean-avg50-min-pass 0.18 --cam-std-max-pass 0.05
 """
 
-from __future__ import annotations
-
 import argparse
 import csv
 import os
