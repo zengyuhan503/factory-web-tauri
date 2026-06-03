@@ -5,6 +5,19 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::time::{sleep, Duration};
 
+/// 优先使用 python3.12（支持 PEP 585 泛型语法），fallback 到 python3
+fn resolve_python_cmd() -> &'static str {
+    if std::process::Command::new("python3.12")
+        .arg("--version")
+        .output()
+        .is_ok()
+    {
+        "python3.12"
+    } else {
+        "python3"
+    }
+}
+
 /// SFR 分析结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SfrResult {
@@ -200,7 +213,7 @@ impl SfrRunner {
         let mean_str = format!("{}", mean_avg50_min);
         let std_str = format!("{}", cam_std_max);
 
-        let mut child = Command::new("python3")
+        let mut child = Command::new(resolve_python_cmd())
             .arg(&run_sfr_path)
             .arg(image_dir_str)
             .arg("--pattern-hint")

@@ -252,8 +252,13 @@ pub fn generate_pdf_report(
         }
     };
 
-    // 调用 Python 脚本生成 PDF
-    let output = std::process::Command::new("python3")
+    // 调用 Python 脚本生成 PDF（优先使用 python3.12）
+    let python_cmd = if std::process::Command::new("python3.12").arg("--version").output().is_ok() {
+        "python3.12"
+    } else {
+        "python3"
+    };
+    let output = std::process::Command::new(python_cmd)
         .arg(&script_path)
         .arg(&json_path)
         .arg(output_dir)
