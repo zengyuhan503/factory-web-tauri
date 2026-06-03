@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+use tokio::time::{sleep, Duration};
 
 /// SFR 分析结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,6 +63,8 @@ impl SfrRunner {
             let msg = format!("已清空当前设备目录 {:?}", pull_target);
             on_log(&msg);
             log::info!("[SFR/pull] {}", msg);
+            // 等待文件系统同步
+            sleep(Duration::from_millis(2000)).await;
         }
 
         // 创建目录
@@ -167,6 +170,8 @@ impl SfrRunner {
 
         on_log(&format!("[SFR/pull] 成功拉取 {} 个文件到 {:?}", local_files.len(), pull_target));
         log::info!("[SFR/pull] 文件拉取成功到 {:?}, 共 {} 个文件", pull_target, local_files.len());
+        // 等待文件完全落盘
+        sleep(Duration::from_millis(1000)).await;
         Ok(pull_target)
     }
 
@@ -255,7 +260,7 @@ impl SfrRunner {
         let summary_csv = image_dir.join("sfr50_summary.csv");
         let sfr_result = Self::parse_sfr_summary(&summary_csv, mean_avg50_min, cam_std_max, image_dir.to_path_buf())
             .map_err(|e| crate::error::CalibError::SfrFailed(format!("解析 SFR 汇总表失败: {}", e)))?;
-
+        println!("exit_code: {}", exit_code);
         match exit_code {
             0 => {
                 on_log("[SFR] 清晰度标定验证通过");

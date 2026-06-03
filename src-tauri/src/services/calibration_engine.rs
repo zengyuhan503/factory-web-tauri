@@ -239,6 +239,8 @@ impl CalibrationEngine {
             Ok(path) => {
                 self.log_step_end(CalibStep::DevicePull, true);
                 self.log_info(&format!("数据集路径: {}", path));
+                self.log_info("等待文件系统同步...");
+                sleep(Duration::from_millis(1000)).await;
                 path
             }
             Err(e) => {
@@ -254,6 +256,8 @@ impl CalibrationEngine {
         match self.run_cam_cali(&dataset_path, &app).await {
             Ok(_) => {
                 self.log_step_end(CalibStep::CamCali, true);
+                self.log_info("等待标定结果落盘...");
+                sleep(Duration::from_millis(1000)).await;
             }
             Err(e) => {
                 self.log_step_end(CalibStep::CamCali, false);
@@ -268,6 +272,8 @@ impl CalibrationEngine {
         match self.run_convert_yaml(&dataset_path, &app).await {
             Ok(_) => {
                 self.log_step_end(CalibStep::ConvertYaml, true);
+                self.log_info("等待 YAML 文件写入完成...");
+                sleep(Duration::from_millis(500)).await;
             }
             Err(e) => {
                 self.log_step_end(CalibStep::ConvertYaml, false);
@@ -578,6 +584,10 @@ impl CalibrationEngine {
             return Err(crate::error::CalibError::CalibrationFileMissing(xml_path));
         }
 
+        // 等待文件完全写入设备存储
+        self.log_info("等待设备文件系统同步...");
+        sleep(Duration::from_millis(500)).await;
+
         // sync
         self.log_action("ADB", "执行 sync 命令");
         self.adb
@@ -692,6 +702,10 @@ impl CalibrationEngine {
         let pdf_path = crate::utils::sfr_report::generate_pdf_report(report, &report_dir, &self.resource_dir)
             .map_err(|e| format!("生成 PDF 失败: {}", e))?;
         self.log_info(&format!("SFR PDF 报告已生成: {}", pdf_path));
+
+        // 等待报告文件完全落盘
+        self.log_info("等待报告文件写入完成...");
+        sleep(Duration::from_millis(500)).await;
 
         // 推回设备
         self.log_action("ADB", "推送 SFR 报告到设备");
