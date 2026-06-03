@@ -19,7 +19,7 @@ pub struct PythonResult {
 impl PythonRunner {
     pub fn new(serial: String, resource_dir: PathBuf) -> Self {
         Self {
-            python_path: "python3".to_string(),
+            python_path: "python".to_string(),
             resource_dir,
             serial,
         }
@@ -79,10 +79,24 @@ impl PythonRunner {
             .await
             .map_err(|e| format!("等待进程结束失败: {}", e))?;
 
+        let exit_code = status.code().unwrap_or(-1);
+        if exit_code != 0 {
+            let full_log = logs.join("\n");
+            return Err(format!(
+                "Python 脚本退出码 {}: {}",
+                exit_code,
+                if full_log.is_empty() {
+                    "无输出".to_string()
+                } else {
+                    full_log
+                }
+            ));
+        }
+
         Ok(PythonResult {
             logs,
             result,
-            exit_code: status.code().unwrap_or(-1),
+            exit_code,
         })
     }
 

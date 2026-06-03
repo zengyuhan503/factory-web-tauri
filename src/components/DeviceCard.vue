@@ -53,7 +53,9 @@ function handleStart() {
   <div class="device-card" :class="[`status-${slot.status}`, `size-${size}`]">
     <!-- 头部 -->
     <div class="card-header">
-      <span class="device-label">设备 {{ slot.slotId + 1 }}</span>
+      <div class="header-left">
+        <span class="device-label">第{{ slot.slotId + 1 }}号设备（CPUID  {{ slot.cpuId }}）</span>
+      </div>
       <span class="device-status">{{ statusText }}</span>
     </div>
 
@@ -83,7 +85,7 @@ function handleStart() {
         <span class="progress-text">{{ slot.progress }}%</span>
       </div>
 
-      <div class="step-info">
+      <div class="step-info" :class="[`step-status-${slot.status}`]">
         <div class="step-name">{{ slot.stepName }}</div>
         <div class="step-hint">{{ slot.hint }}</div>
       </div>
@@ -197,10 +199,25 @@ function handleStart() {
   width: 100%;
 }
 
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .device-label {
   font-size: 16px;
   font-weight: 600;
   color: #1f2937;
+}
+
+.device-cpu-id {
+  font-size: 11px;
+  color: #6b7280;
+  font-family: monospace;
+  background: #f3f4f6;
+  padding: 1px 6px;
+  border-radius: 4px;
 }
 
 .device-status {
@@ -252,7 +269,8 @@ function handleStart() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+  width: 100%;
 }
 
 .progress-ring {
@@ -293,26 +311,102 @@ function handleStart() {
 
 .step-info {
   text-align: center;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f9fafb;
+  transition: all 0.3s ease;
+}
+
+/* 测试中 - 蓝色 */
+.step-status-running {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+.step-status-running .step-name {
+  color: #1e40af;
+  font-weight: 600;
+}
+.step-status-running .step-hint {
+  color: #3b82f6;
+}
+
+/* 通过 - 绿色 */
+.step-status-success {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+.step-status-success .step-name {
+  color: #065f46;
+  font-weight: 600;
+}
+.step-status-success .step-hint {
+  color: #10b981;
+}
+
+/* 未通过 - 红色 */
+.step-status-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+.step-status-error .step-name {
+  color: #991b1b;
+  font-weight: 700;
+}
+.step-status-error .step-hint {
+  color: #ef4444;
+  font-weight: 500;
+}
+
+/* 已连接 - 紫色 */
+.step-status-connected {
+  background: #faf5ff;
+  border: 1px solid #e9d5ff;
+}
+.step-status-connected .step-name {
+  color: #6b21a8;
+  font-weight: 600;
+}
+.step-status-connected .step-hint {
+  color: #a855f7;
+}
+
+/* 未连接 - 灰色 */
+.step-status-empty {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+}
+.step-status-empty .step-name {
+  color: #6b7280;
+}
+.step-status-empty .step-hint {
+  color: #9ca3af;
 }
 
 .step-name {
   font-size: 15px;
   font-weight: 500;
   color: #374151;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  line-height: 1.4;
 }
 
 .step-hint {
   font-size: 13px;
   color: #6b7280;
   min-height: 20px;
+  line-height: 1.5;
 }
 
 .result-area {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   margin-top: auto;
+  width: 100%;
+  padding-top: 8px;
+  border-top: 1px solid #f3f4f6;
 }
 
 .result-label {
@@ -322,9 +416,10 @@ function handleStart() {
 
 .result-badge {
   font-size: 14px;
-  font-weight: 500;
-  padding: 4px 12px;
-  border-radius: 12px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 20px;
+  transition: all 0.3s ease;
 }
 
 .result-pending {
@@ -335,10 +430,29 @@ function handleStart() {
 .result-pass {
   background: #d1fae5;
   color: #059669;
+  border: 1px solid #6ee7b7;
 }
 
 .result-fail {
   background: #fee2e2;
   color: #dc2626;
+  border: 1px solid #fca5a5;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+/* 设备卡片整体状态边框 */
+.device-card.status-error {
+  border: 2px solid #fecaca;
+  box-shadow: 0 2px 12px rgba(220, 38, 38, 0.15);
+}
+
+.device-card.status-success {
+  border: 2px solid #a7f3d0;
+  box-shadow: 0 2px 12px rgba(16, 185, 129, 0.15);
+}
+
+.device-card.status-running {
+  border: 2px solid #bfdbfe;
+  box-shadow: 0 2px 12px rgba(59, 130, 246, 0.15);
 }
 </style>

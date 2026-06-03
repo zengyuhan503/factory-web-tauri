@@ -20,7 +20,10 @@ impl DeviceTestLogger {
     ///
     /// 日志文件路径: logs/{cpu_id}_{yyyy-MM-dd-HH-mm-ss}.log
     pub fn new(cpu_id: &str, serial: &str) -> Self {
-        let log_dir = PathBuf::from("logs");
+        let log_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.join("logs")))
+            .unwrap_or_else(|| PathBuf::from("logs"));
         std::fs::create_dir_all(&log_dir).ok();
 
         let filename = if cpu_id.is_empty() {
@@ -156,6 +159,9 @@ impl DeviceTestLogger {
             crate::error::CalibError::BootTimeout => {
                 self.error(&format!("[错误详情] 设备重启后启动超时"));
             }
+            crate::error::CalibError::SfrFailed(msg) => {
+                self.error(&format!("[错误详情] 清晰度标定验证失败: {}", msg));
+            }
             crate::error::CalibError::CalibrationFileMissing(path) => {
                 self.error(&format!("[错误详情] 标定结果文件缺失: {}", path));
             }
@@ -190,7 +196,10 @@ pub struct DeviceLogger {
 
 impl DeviceLogger {
     pub fn new() -> Self {
-        let log_dir = PathBuf::from("logs");
+        let log_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.join("logs")))
+            .unwrap_or_else(|| PathBuf::from("logs"));
         std::fs::create_dir_all(&log_dir).ok();
         std::fs::create_dir_all(log_dir.join("device")).ok();
         std::fs::create_dir_all(log_dir.join("error")).ok();

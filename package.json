@@ -16,7 +16,7 @@
     "vue": "^3.5.35"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^1.6.0",
+    "@tauri-apps/cli": "^1.6.3",
     "@vitejs/plugin-vue": "^5.2.4",
     "typescript": "^5.9.3",
     "vite": "^5.4.21"

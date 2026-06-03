@@ -6,7 +6,6 @@ import type { DeviceSlot, DeviceConfig } from '../services/tauriCommands';
 export interface SlotState {
   slotId: number;
   serial: string | null;
-  cpuId: string | null;
   status: 'empty' | 'connected' | 'running' | 'success' | 'error';
   progress: number;
   stepName: string;
@@ -21,7 +20,6 @@ function createEmptySlot(id: number): SlotState {
   return {
     slotId: id,
     serial: null,
-    cpuId: null,
     status: 'empty',
     progress: 0,
     stepName: '待连接',
@@ -71,7 +69,7 @@ export function useCalibration() {
       const slot = slots.find(s => s.slotId === slot_id);
       if (slot) {
         slot.serial = serial;
-        slot.cpuId = cpu_id || null;
+        (slot as any).cpuId = cpu_id || null;
         slot.status = 'connected';
         slot.stepName = '已连接';
         slot.hint = '点击启动按钮开始标定';

@@ -1,6 +1,7 @@
 use crate::adapters::adb::AdbExecutor;
 use crate::adapters::http_client::OssUploader;
 use crate::adapters::python_runner::{CheckStatus, PythonRunner};
+use crate::adapters::sfr_runner::SfrRunner;
 use crate::models::{CalibResult, CalibStep, DeviceConfig, ThresholdConfig};
 use crate::utils::logger::DeviceTestLogger;
 use crate::utils::paths::get_device_work_dir;
@@ -13,6 +14,7 @@ use tokio::time::{sleep, Duration};
 pub struct CalibrationEngine {
     slot_id: u8,
     serial: String,
+    cpu_id: String,
     config: DeviceConfig,
     resource_dir: std::path::PathBuf,
     adb: AdbExecutor,
@@ -24,6 +26,7 @@ impl CalibrationEngine {
     pub fn new(
         slot_id: u8,
         serial: String,
+        cpu_id: String,
         config: DeviceConfig,
         resource_dir: std::path::PathBuf,
         logger: Option<DeviceTestLogger>,
@@ -31,6 +34,7 @@ impl CalibrationEngine {
         Self {
             slot_id,
             serial: serial.clone(),
+            cpu_id,
             config,
             resource_dir,
             adb: AdbExecutor::new(serial),
@@ -108,7 +112,7 @@ impl CalibrationEngine {
             .map_err(crate::error::CalibError::Adb)?;
         self.log_info("设备已连接并就绪");
 
-        let work_dir = get_device_work_dir(&serial);
+        let work_dir = get_device_work_dir(&self.cpu_id);
         self.log_action("文件系统", &format!("创建工作目录: {:?}", work_dir));
         std::fs::create_dir_all(&work_dir).map_err(|e| {
             crate::error::CalibError::WorkDirCreateFailed(e.to_string())
@@ -118,7 +122,117 @@ impl CalibrationEngine {
         self.log_info(&format!("检查标定文件数量上限: {}", self.config.file_max));
         self.check_file_limit().await?;
 
-        // 3. DevicePull
+        // 3. SFR 清晰度标定验证
+        // 3.1 SfrPull - 拉取清晰度标定文件
+        self.log_step_start(CalibStep::SfrPull);
+        self.emit_step(CalibStep::SfrPull, &app).await;
+        let sfr_runner = SfrRunner::new(serial.clone(), self.resource_dir.clone());
+        let sfr_image_dir = match sfr_runner
+            .pull_sfr_files(&work_dir, &self.cpu_id, |log| {
+                let _ = app.emit_all(
+                    "device:log",
+                    serde_json::json!({
+                        "slot_id": self.slot_id,
+                        "message": log,
+                        "level": "info",
+                    }),
+                );
+                if let Some(ref logger) = self.logger {
+                    logger.python_log(log);
+                }
+            })
+            .await
+        {
+            Ok(dir) => {
+                self.log_step_end(CalibStep::SfrPull, true);
+                self.log_info(&format!("SFR 文件拉取成功: {:?}", dir));
+                dir
+            }
+            Err(e) => {
+                self.log_step_end(CalibStep::SfrPull, false);
+                self.log_calib_error(&e);
+                return Err(e);
+            }
+        };
+
+        // 3.2 SfrAnalyze - 运行清晰度分析
+        self.log_step_start(CalibStep::SfrAnalyze);
+        self.emit_step(CalibStep::SfrAnalyze, &app).await;
+        let sfr_mean_min = self.config.sfr_mean_avg50_min.unwrap_or(0.18);
+        let sfr_std_max = self.config.sfr_cam_std_max.unwrap_or(0.05);
+        let sfr_result = match sfr_runner
+            .analyze_sfr(
+                &sfr_image_dir,
+                sfr_mean_min,
+                sfr_std_max,
+                |log| {
+                    let _ = app.emit_all(
+                        "device:log",
+                        serde_json::json!({
+                            "slot_id": self.slot_id,
+                            "message": log,
+                            "level": "info",
+                        }),
+                    );
+                    if let Some(ref logger) = self.logger {
+                        logger.python_log(log);
+                    }
+                },
+            )
+            .await
+        {
+            Ok(result) => {
+                // 检查 SFR 结果是否真正合格（脚本可能返回 Ok 但结果不合格）
+                let sfr_pass = result.device_mean_avg50 >= sfr_mean_min
+                    && result.device_std_avg50 <= sfr_std_max;
+
+                if !sfr_pass {
+                    let msg = format!(
+                        "SFR 清晰度验证未通过: mean_avg50={:.4}(阈值≥{:.4}), std_avg50={:.6}(阈值≤{:.4}), 判级={}",
+                        result.device_mean_avg50, sfr_mean_min,
+                        result.device_std_avg50, sfr_std_max,
+                        result.device_grade
+                    );
+                    self.log_error(&msg);
+                    self.log_step_end(CalibStep::SfrAnalyze, false);
+                    let err = crate::error::CalibError::SfrFailed(msg);
+                    self.log_calib_error(&err);
+                    return Err(err);
+                }
+
+                self.log_step_end(CalibStep::SfrAnalyze, true);
+                self.log_info("清晰度标定验证通过");
+                result
+            }
+            Err(e) => {
+                self.log_step_end(CalibStep::SfrAnalyze, false);
+                self.log_calib_error(&e);
+                return Err(e);
+            }
+        };
+
+        // 3.3 SfrReport - 生成清晰度验证报告（无论成功失败都生成）
+        self.log_step_start(CalibStep::SfrReport);
+        self.emit_step(CalibStep::SfrReport, &app).await;
+        let report = crate::utils::sfr_report::SfrReportData::from_result(
+            &self.serial,
+            &self.cpu_id,
+            &sfr_result,
+        );
+        match self.generate_and_push_sfr_report(&report, &sfr_image_dir, &work_dir, &app,
+        ).await {
+            Ok(_) => {
+                self.log_step_end(CalibStep::SfrReport, true);
+                self.log_info("清晰度验证报告生成并推送完成");
+            }
+            Err(e) => {
+                self.log_warn(&format!("清晰度验证报告生成失败（非致命）: {}", e));
+                self.log_step_end(CalibStep::SfrReport, false);
+                // 报告生成失败不阻断后续流程
+            }
+        }
+
+        // 4. DevicePull
         self.log_step_start(CalibStep::DevicePull);
         self.emit_step(CalibStep::DevicePull, &app).await;
         let dataset_path = match self.run_device_pull(&app).await {
@@ -265,7 +379,7 @@ impl CalibrationEngine {
 
     async fn emit_step(&self, step: CalibStep, app: &tauri::AppHandle) {
         let _ = app.emit_all(
-            &format!("device:{}:step", self.slot_id),
+            "device:step",
             serde_json::json!({
                 "slot_id": self.slot_id,
                 "step": format!("{:?}", step),
@@ -278,7 +392,7 @@ impl CalibrationEngine {
 
     async fn emit_complete(&self, success: bool, oss_url: &str, app: &tauri::AppHandle) {
         let _ = app.emit_all(
-            &format!("device:{}:complete", self.slot_id),
+            "device:complete",
             serde_json::json!({
                 "slot_id": self.slot_id,
                 "success": success,
@@ -322,7 +436,7 @@ impl CalibrationEngine {
                 &self.config.qvr_type,
                 move |log| {
                     let _ = app_clone.emit_all(
-                        &format!("device:{}:log", slot_id),
+                        "device:log",
                         serde_json::json!({
                             "slot_id": slot_id,
                             "message": log,
@@ -357,7 +471,7 @@ impl CalibrationEngine {
                 dataset_path,
                 move |log| {
                     let _ = app_clone.emit_all(
-                        &format!("device:{}:log", slot_id),
+                        "device:log",
                         serde_json::json!({
                             "slot_id": slot_id,
                             "message": log,
@@ -388,7 +502,7 @@ impl CalibrationEngine {
         runner
             .run_convert_yaml(dataset_path, move |log| {
                 let _ = app_clone.emit_all(
-                    &format!("device:{}:log", slot_id),
+                    "device:log",
                     serde_json::json!({
                         "slot_id": slot_id,
                         "message": log,
@@ -418,7 +532,7 @@ impl CalibrationEngine {
         let result = runner
             .run_check_result(dataset_path, move |log| {
                 let _ = app_clone.emit_all(
-                    &format!("device:{}:log", slot_id),
+                    "device:log",
                     serde_json::json!({
                         "slot_id": slot_id,
                         "message": log,
@@ -551,5 +665,67 @@ impl CalibrationEngine {
         }
 
         Ok(oss_url)
+    }
+
+    /// 生成 SFR 报告并推回设备
+    async fn generate_and_push_sfr_report(
+        &self,
+        report: &crate::utils::sfr_report::SfrReportData,
+        image_dir: &std::path::Path,
+        work_dir: &std::path::Path,
+        app: &tauri::AppHandle,
+    ) -> Result<(), String> {
+        // 报告统一输出到 sfr 子目录中
+        let report_dir = work_dir.join("sfr");
+
+        // 生成 JSON 报告
+        let json_path = crate::utils::sfr_report::generate_json_report(report, &report_dir)
+            .map_err(|e| format!("生成 JSON 失败: {}", e))?;
+        self.log_info(&format!("SFR JSON 报告已生成: {}", json_path));
+
+        // 生成 Text 报告
+        let txt_path = crate::utils::sfr_report::generate_text_report(report, &report_dir)
+            .map_err(|e| format!("生成 Text 失败: {}", e))?;
+        self.log_info(&format!("SFR Text 报告已生成: {}", txt_path));
+
+        // 生成 PDF 报告
+        let pdf_path = crate::utils::sfr_report::generate_pdf_report(report, &report_dir, &self.resource_dir)
+            .map_err(|e| format!("生成 PDF 失败: {}", e))?;
+        self.log_info(&format!("SFR PDF 报告已生成: {}", pdf_path));
+
+        // 推回设备
+        self.log_action("ADB", "推送 SFR 报告到设备");
+
+        // 推送 JSON
+        match self.adb.push(&json_path, "/sdcard/snapshot/", 30000).await {
+            Ok(_) => self.log_info("SFR JSON 报告已推送"),
+            Err(e) => self.log_warn(&format!("推送 JSON 失败: {}", e)),
+        }
+
+        // 推送 Text
+        match self.adb.push(&txt_path, "/sdcard/snapshot/", 30000).await {
+            Ok(_) => self.log_info("SFR Text 报告已推送"),
+            Err(e) => self.log_warn(&format!("推送 Text 失败: {}", e)),
+        }
+
+        // 推送 PDF
+        match self.adb.push(&pdf_path, "/sdcard/snapshot/", 30000).await {
+            Ok(_) => self.log_info("SFR PDF 报告已推送"),
+            Err(e) => self.log_warn(&format!("推送 PDF 失败: {}", e)),
+        }
+
+        // 推送图片
+        for cam in &report.sfr.cameras {
+            let img_path = image_dir.join(&cam.image);
+            if img_path.exists() {
+                match self.adb.push(
+                    img_path.to_str().unwrap(), "/sdcard/snapshot/", 30000).await {
+                    Ok(_) => {}
+                    Err(e) => self.log_warn(&format!("推送图片 {} 失败: {}", cam.image, e)),
+                }
+            }
+        }
+
+        Ok(())
     }
 }

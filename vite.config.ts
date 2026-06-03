@@ -6,4 +6,9 @@ export default defineConfig({
   build: {
     outDir: 'dist',
   },
+  server: {
+    watch: {
+      ignored: ['**/config.json'],
+    },
+  },
 })

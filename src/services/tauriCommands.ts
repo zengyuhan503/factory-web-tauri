@@ -10,6 +10,8 @@ export interface DeviceConfig {
     rgb: number | null;
     tof: number | null;
   };
+  sfr_mean_avg50_min: number | null;
+  sfr_cam_std_max: number | null;
 }
 
 export interface AppConfig {
@@ -21,6 +23,8 @@ export interface AppConfig {
   verify_rgb: number | null;
   verify_tof: number | null;
   slot_count: number;
+  sfr_mean_avg50_min: number | null;
+  sfr_cam_std_max: number | null;
 }
 
 export interface DeviceSlot {
@@ -35,7 +39,7 @@ export interface DeviceSlot {
 }
 
 export async function startDeviceTest(slotId: number, config: DeviceConfig): Promise<void> {
-  await invoke('start_device_test', { slot_id: slotId, config });
+  await invoke('start_device_test', { slotId, config });
 }
 
 export async function getSlotStatus(): Promise<DeviceSlot[]> {

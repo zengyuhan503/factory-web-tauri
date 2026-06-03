@@ -68,8 +68,50 @@ impl CalibrationPool {
         slot.result = SlotResult::Pending;
 
         let resource_dir = get_resource_dir(&app);
-        let engine = CalibrationEngine::new(slot_id, serial.clone(), config, resource_dir, Some(logger));
+        let engine = CalibrationEngine::new(slot_id, serial.clone(), cpu_id.clone(), config, resource_dir, Some(logger));
         let slots_clone = self.slots.clone();
+
+        // 标定结束后自动恢复槽位的辅助函数
+        let slots_clone_for_reset = slots_clone.clone();
+        let schedule_reset = move |app_handle: tauri::AppHandle| {
+            let serial_clone = serial.clone();
+            let slots_clone2 = slots_clone_for_reset.clone();
+            let slot_id = slot_id;
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+
+                let adb = AdbExecutor::new(serial_clone.clone());
+                let still_connected = adb.is_connected().await;
+
+                let mut slots = slots_clone2.lock().await;
+                if let Some(slot) = slots.get_mut(slot_id as usize) {
+                    if still_connected {
+                        log::info!("[槽位{}] 设备 {} 仍在连接，10秒后恢复为可测试状态", slot_id, serial_clone);
+                        slot.status = SlotStatus::Connected;
+                        slot.progress = 0;
+                        slot.step_name = "已连接".to_string();
+                        slot.hint = "点击启动按钮开始标定".to_string();
+                        slot.result = SlotResult::Pending;
+                    } else {
+                        log::info!("[槽位{}] 设备 {} 已断开，10秒后重置为空槽位", slot_id, serial_clone);
+                        slot.serial = None;
+                        slot.cpu_id = None;
+                        slot.status = SlotStatus::Empty;
+                        slot.progress = 0;
+                        slot.step_name = "待连接".to_string();
+                        slot.hint = "".to_string();
+                        slot.result = SlotResult::Pending;
+                    }
+                    let _ = app_handle.emit_all(
+                        "device:reset",
+                        serde_json::json!({
+                            "slot_id": slot_id,
+                            "status": if still_connected { "connected" } else { "empty" },
+                        }),
+                    );
+                }
+            });
+        };
 
         // 在独立 task 中运行
         tokio::spawn(async move {
@@ -83,6 +125,8 @@ impl CalibrationPool {
                         slot.hint = "标定成功".to_string();
                         slot.result = SlotResult::Pass;
                     }
+                    // 标定成功也10秒后恢复
+                    schedule_reset(app);
                 }
                 Err(e) => {
                     log::error!("[槽位{}] 标定失败: {}", slot_id, e);
@@ -97,12 +141,14 @@ impl CalibrationPool {
                     }
 
                     let _ = app.emit_all(
-                        &format!("device:{}:error", slot_id),
+                        "device:error",
                         serde_json::json!({
                             "slot_id": slot_id,
                             "message": e.to_string(),
                         }),
                     );
+                    // 标定失败10秒后恢复
+                    schedule_reset(app);
                 }
             }
         });

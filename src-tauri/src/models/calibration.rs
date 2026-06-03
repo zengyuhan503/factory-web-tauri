@@ -3,13 +3,16 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CalibStep {
     Idle = 0,
-    DevicePull = 1,
-    CamCali = 2,
-    ConvertYaml = 3,
-    VerifyCoverage = 4,
-    CheckResult = 5,
-    PushAndUpload = 6,
-    Complete = 7,
+    SfrPull = 1,
+    SfrAnalyze = 2,
+    SfrReport = 3,
+    DevicePull = 4,
+    CamCali = 5,
+    ConvertYaml = 6,
+    VerifyCoverage = 7,
+    CheckResult = 8,
+    PushAndUpload = 9,
+    Complete = 10,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,6 +54,9 @@ impl CalibStep {
     pub fn display_name(&self) -> &'static str {
         match self {
             CalibStep::Idle => "待开始",
+            CalibStep::SfrPull => "清晰度文件拉取",
+            CalibStep::SfrAnalyze => "清晰度标定验证",
+            CalibStep::SfrReport => "清晰度报告生成",
             CalibStep::DevicePull => "拉取设备数据",
             CalibStep::CamCali => "摄像头标定计算",
             CalibStep::ConvertYaml => "标定文件转换",
@@ -64,11 +70,14 @@ impl CalibStep {
     pub fn progress(&self) -> u8 {
         match self {
             CalibStep::Idle => 0,
-            CalibStep::DevicePull => 10,
-            CalibStep::CamCali => 30,
-            CalibStep::ConvertYaml => 50,
-            CalibStep::VerifyCoverage => 65,
-            CalibStep::CheckResult => 80,
+            CalibStep::SfrPull => 8,
+            CalibStep::SfrAnalyze => 15,
+            CalibStep::SfrReport => 20,
+            CalibStep::DevicePull => 25,
+            CalibStep::CamCali => 40,
+            CalibStep::ConvertYaml => 55,
+            CalibStep::VerifyCoverage => 70,
+            CalibStep::CheckResult => 85,
             CalibStep::PushAndUpload => 95,
             CalibStep::Complete => 100,
         }
@@ -77,6 +86,9 @@ impl CalibStep {
     pub fn hint(&self) -> &'static str {
         match self {
             CalibStep::Idle => "请连接设备后点击启动",
+            CalibStep::SfrPull => "正在从设备拉取清晰度标定文件...",
+            CalibStep::SfrAnalyze => "正在进行清晰度标定文件验证...",
+            CalibStep::SfrReport => "正在生成清晰度验证报告...",
             CalibStep::DevicePull => "正在从设备拉取标定原始数据...",
             CalibStep::CamCali => "正在进行摄像头标定计算，请耐心等待...",
             CalibStep::ConvertYaml => "正在转换标定文件格式...",

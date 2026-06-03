@@ -23,6 +23,9 @@ pub enum CalibError {
     #[error("覆盖率验证失败: {0}")]
     VerifyFailed(String),
 
+    #[error("清晰度标定验证失败: {0}")]
+    SfrFailed(String),
+
     #[error("阈值检查未通过")]
     ThresholdExceeded,
 

@@ -32,6 +32,8 @@ async function handleSaveConfig(config: typeof globalConfig) {
       verify_rgb: config.verify_rgb,
       verify_tof: config.verify_tof,
       slot_count: 4,
+      sfr_mean_avg50_min: config.sfr_mean_avg50_min,
+      sfr_cam_std_max: config.sfr_cam_std_max,
     });
   } catch (e) {
     console.error('保存配置失败:', e);

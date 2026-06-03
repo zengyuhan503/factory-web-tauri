@@ -24,7 +24,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "com.skyworthxr.skycalib",
+      "identifier": "skyworthxr_skycalib",
       "longDescription": "",
       "macOS": {
         "entitlements": null,
@@ -36,7 +36,8 @@
       "resources": [
         "resources/ProcessCal",
         "resources/CheckResult",
-        "resources/tools"
+        "resources/tools",
+        "resources/sfr"
       ],
       "shortDescription": "SkyCalib VR设备标定工具",
       "targets": ["deb"],

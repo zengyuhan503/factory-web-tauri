@@ -6,11 +6,14 @@ interface Props {
   visible: boolean;
   initialConfig: {
     is_rgb: boolean;
+    is_tof: boolean;
     qvr_type: string;
     file_max: number;
     verify_dof: number | null;
     verify_rgb: number | null;
     verify_tof: number | null;
+    sfr_mean_avg50_min: number | null;
+    sfr_cam_std_max: number | null;
   };
 }
 
@@ -58,6 +61,7 @@ function closePassword() {
 
 function onQvrTypeChange() {
   form.is_rgb = hasRGBByType(form.qvr_type);
+  form.is_tof = hasTofByType(form.qvr_type);
 }
 
 function onSave() {
@@ -137,6 +141,16 @@ function onCancel() {
         <div class="form-group">
           <label>TOF 覆盖率阈值 (%)</label>
           <input v-model.number="form.verify_tof" type="number" class="form-input" placeholder="可选" />
+        </div>
+
+        <div class="form-group">
+          <label>SFR 清晰度均值阈值</label>
+          <input v-model.number="form.sfr_mean_avg50_min" type="number" step="0.01" class="form-input" placeholder="默认 0.18" />
+        </div>
+
+        <div class="form-group">
+          <label>SFR 摄像头间标准差阈值</label>
+          <input v-model.number="form.sfr_cam_std_max" type="number" step="0.01" class="form-input" placeholder="默认 0.05" />
         </div>
 
         <div class="modal-actions">

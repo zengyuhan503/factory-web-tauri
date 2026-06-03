@@ -30,6 +30,12 @@ impl DeviceManager {
                         if let Some(ref serial) = slot.serial {
                             let still_connected = devices.iter().any(|d| d.serial == *serial);
                             if !still_connected {
+                                // 如果槽位正在运行标定流程，不重置槽位，让标定引擎自行处理
+                                if slot.status == SlotStatus::Running {
+                                    log::warn!("槽位 {} 设备 {} 在标定过程中断开，等待标定任务结束", slot.slot_id, serial);
+                                    continue;
+                                }
+
                                 log::warn!("槽位 {} 设备 {} 断开", slot.slot_id, serial);
                                 slot.serial = None;
                                 slot.cpu_id = None;
@@ -40,8 +46,10 @@ impl DeviceManager {
                                 slot.result = crate::models::SlotResult::Pending;
 
                                 let _ = app.emit_all(
-                                    &format!("device:{}:disconnected", slot.slot_id),
-                                    (),
+                                    "device:disconnected",
+                                    serde_json::json!({
+                                        "slot_id": slot.slot_id,
+                                    }),
                                 );
                             }
                         }
@@ -84,8 +92,9 @@ impl DeviceManager {
                                     slot.hint = "点击启动按钮开始标定".to_string();
 
                                     let _ = app.emit_all(
-                                        &format!("device:{}:connected", slot.slot_id),
+                                        "device:connected",
                                         serde_json::json!({
+                                            "slot_id": slot.slot_id,
                                             "serial": device.serial,
                                             "cpu_id": cpu_id,
                                         }),

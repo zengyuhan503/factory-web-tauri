@@ -1,0 +1,12 @@
+{
+  "is_rgb": true,
+  "is_tof": false,
+  "qvr_type": "4",
+  "file_max": 200,
+  "verify_dof": null,
+  "verify_rgb": null,
+  "verify_tof": null,
+  "slot_count": 4,
+  "sfr_mean_avg50_min": 0.51,
+  "sfr_cam_std_max": 0.05
+}
