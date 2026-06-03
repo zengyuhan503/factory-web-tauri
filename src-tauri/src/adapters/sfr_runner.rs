@@ -200,7 +200,7 @@ impl SfrRunner {
         let mean_str = format!("{}", mean_avg50_min);
         let std_str = format!("{}", cam_std_max);
 
-        let mut child = Command::new("C:\\py312\\python.exe")
+        let mut child = Command::new("python3")
             .arg(&run_sfr_path)
             .arg(image_dir_str)
             .arg("--pattern-hint")
