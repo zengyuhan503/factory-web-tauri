@@ -39,7 +39,9 @@ export interface DeviceSlot {
 }
 
 export async function startDeviceTest(slotId: number, config: DeviceConfig): Promise<void> {
-  await invoke('start_device_test', { slot_id: slotId, config });
+  const args = { slot_id: slotId, config };
+  console.log('[tauriCommands] invoke start_device_test with args:', JSON.stringify(args));
+  await invoke('start_device_test', args);
 }
 
 export async function getSlotStatus(): Promise<DeviceSlot[]> {
