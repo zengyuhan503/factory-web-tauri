@@ -253,7 +253,7 @@ pub fn generate_pdf_report(
     };
 
     // 调用 Python 脚本生成 PDF
-    let output = std::process::Command::new("python")
+    let output = std::process::Command::new("python3")
         .arg(&script_path)
         .arg(&json_path)
         .arg(output_dir)
