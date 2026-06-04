@@ -1,6 +1,4 @@
 use crate::models::{CalibStatus, CalibStep, SlotStatus};
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 pub struct SlotState {
     pub status: SlotStatus,

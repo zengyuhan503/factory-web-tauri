@@ -1,6 +1,5 @@
 use crate::models::VerifyData;
 use regex::Regex;
-use std::path::Path;
 
 pub fn verify_coverage(
     device_pull_path: &str,

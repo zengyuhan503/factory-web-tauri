@@ -1,4 +1,3 @@
-use crate::adapters::adb::AdbExecutor;
 use crate::error::{parse_python_calib_error, CalibError};
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -51,7 +50,7 @@ impl PythonRunner {
 
         let mut logs = Vec::new();
         let mut result = String::new();
-        let mut resolved = false;
+        let mut _resolved = false;
 
         // 读取 stdout
         if let Some(stdout) = child.stdout.take() {
@@ -64,7 +63,7 @@ impl PythonRunner {
                     if let Some(path_idx) = line.find("path:") {
                         result = line[path_idx + 5..].to_string();
                     }
-                    resolved = true;
+                    _resolved = true;
                     on_log(&line);
                 } else if line.contains("status:error") {
                     // 收集剩余日志用于错误解析

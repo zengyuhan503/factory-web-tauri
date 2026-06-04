@@ -1,6 +1,6 @@
+use base64::Engine;
 use reqwest::multipart;
-use serde::{Deserialize, Serialize};
-use std::path::Path;
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct OssPolicy {
@@ -36,7 +36,7 @@ impl OssUploader {
     pub async fn get_policy(&self) -> Result<OssPolicy, String> {
         let auth = format!(
             "Basic {}",
-            base64::encode("factorySupportOnly:e2328254a2c6dd074b52b4a03e7bd882")
+            base64::engine::general_purpose::STANDARD.encode("factorySupportOnly:e2328254a2c6dd074b52b4a03e7bd882")
         );
 
         let res = self

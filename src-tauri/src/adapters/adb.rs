@@ -1,5 +1,4 @@
 use crate::error::AdbError;
-use std::process::Stdio;
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;

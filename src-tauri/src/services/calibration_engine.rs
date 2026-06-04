@@ -68,12 +68,6 @@ impl CalibrationEngine {
         }
     }
 
-    fn log_python(&self, message: &str) {
-        if let Some(ref logger) = self.logger {
-            logger.python_log(message);
-        }
-    }
-
     fn log_step_start(&self, step: CalibStep) {
         if let Some(ref logger) = self.logger {
             logger.step_start(step.display_name(), step as u8);
@@ -696,7 +690,7 @@ impl CalibrationEngine {
         report: &crate::utils::sfr_report::SfrReportData,
         image_dir: &std::path::Path,
         work_dir: &std::path::Path,
-        app: &tauri::AppHandle,
+        _app: &tauri::AppHandle,
     ) -> Result<(), String> {
         // 报告统一输出到 sfr 子目录中
         let report_dir = work_dir.join("sfr");
