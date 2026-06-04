@@ -1,4 +1,5 @@
 use crate::adapters::adb::AdbExecutor;
+use crate::models::events::ErrorEvent;
 use crate::models::{DeviceConfig, DeviceSlot, SlotResult, SlotStatus};
 use crate::services::calibration_engine::CalibrationEngine;
 use crate::utils::logger::DeviceTestLogger;
@@ -129,24 +130,19 @@ impl CalibrationPool {
                     schedule_reset(app);
                 }
                 Err(e) => {
-                    log::error!("[槽位{}] 标定失败: {}", slot_id, e);
+                    log::error!("[槽位{}] 标定失败 [{}]: {}", slot_id, e.code(), e.user_message());
                     let mut slots = slots_clone.lock().await;
                     if let Some(slot) = slots.get_mut(slot_id as usize) {
                         slot.status = SlotStatus::Error;
-                        slot.step_name = "失败".to_string();
-                        slot.hint = e.to_string();
+                        slot.step_name = format!("失败 [{}]", e.code());
+                        slot.hint = e.user_message();
                         slot.result = SlotResult::Fail {
-                            reason: e.to_string(),
+                            reason: e.user_message(),
                         };
                     }
 
-                    let _ = app.emit_all(
-                        "device:error",
-                        serde_json::json!({
-                            "slot_id": slot_id,
-                            "message": e.to_string(),
-                        }),
-                    );
+                    let error_event = ErrorEvent::from_calib_error(slot_id, &e);
+                    let _ = app.emit_all("device:error", error_event);
                     // 标定失败10秒后恢复
                     schedule_reset(app);
                 }

@@ -1,3 +1,5 @@
+use crate::adapters::adb::AdbExecutor;
+use crate::error::{parse_python_calib_error, CalibError};
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -35,7 +37,7 @@ impl PythonRunner {
         script_name: &str,
         args: &[&str],
         on_log: impl Fn(&str),
-    ) -> Result<PythonResult, String> {
+    ) -> Result<PythonResult, CalibError> {
         let script_path = self.resource_dir.join("ProcessCal").join(script_name);
 
         let mut child = Command::new(&self.python_path)
@@ -45,7 +47,7 @@ impl PythonRunner {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| format!("启动 Python 失败: {}", e))?;
+            .map_err(|e| CalibError::PythonNotFound(format!("启动 Python 失败: {}", e)))?;
 
         let mut logs = Vec::new();
         let mut result = String::new();
@@ -65,7 +67,22 @@ impl PythonRunner {
                     resolved = true;
                     on_log(&line);
                 } else if line.contains("status:error") {
-                    return Err(format!("Python 脚本错误: {}", line));
+                    // 收集剩余日志用于错误解析
+                    let mut error_logs = logs.clone();
+                    while let Ok(Some(remaining)) = lines.next_line().await {
+                        error_logs.push(remaining.clone());
+                        on_log(&remaining);
+                    }
+                    // 也读取 stderr
+                    if let Some(stderr) = child.stderr.take() {
+                        let reader = BufReader::new(stderr);
+                        let mut err_lines = reader.lines();
+                        while let Ok(Some(err_line)) = err_lines.next_line().await {
+                            error_logs.push(err_line);
+                        }
+                    }
+                    let _ = child.wait().await;
+                    return Err(parse_python_calib_error(script_name, &error_logs));
                 } else {
                     on_log(&line);
                 }
@@ -85,20 +102,11 @@ impl PythonRunner {
         let status = child
             .wait()
             .await
-            .map_err(|e| format!("等待进程结束失败: {}", e))?;
+            .map_err(|e| CalibError::Unknown(format!("等待进程结束失败: {}", e)))?;
 
         let exit_code = status.code().unwrap_or(-1);
         if exit_code != 0 {
-            let full_log = logs.join("\n");
-            return Err(format!(
-                "Python 脚本退出码 {}: {}",
-                exit_code,
-                if full_log.is_empty() {
-                    "无输出".to_string()
-                } else {
-                    full_log
-                }
-            ));
+            return Err(parse_python_calib_error(script_name, &logs));
         }
 
         Ok(PythonResult {
@@ -113,7 +121,7 @@ impl PythonRunner {
         is_rgb: bool,
         qvr_type: &str,
         on_log: impl Fn(&str),
-    ) -> Result<String, String> {
+    ) -> Result<String, CalibError> {
         let result = self
             .run(
                 "DevicePull.py",
@@ -132,7 +140,7 @@ impl PythonRunner {
         qvr_type: &str,
         device_path: &str,
         on_log: impl Fn(&str),
-    ) -> Result<(), String> {
+    ) -> Result<(), CalibError> {
         let path = device_path.trim_end_matches('/');
         self.run(
             "ProcessCam.py",
@@ -147,7 +155,7 @@ impl PythonRunner {
         &self,
         device_path: &str,
         on_log: impl Fn(&str),
-    ) -> Result<(), String> {
+    ) -> Result<(), CalibError> {
         let path = device_path.trim_end_matches('/');
         self.run("ConvertSlamYaml.py", &[path], on_log).await?;
         Ok(())
@@ -157,7 +165,7 @@ impl PythonRunner {
         &self,
         device_path: &str,
         on_log: impl Fn(&str),
-    ) -> Result<CheckResult, String> {
+    ) -> Result<CheckResult, CalibError> {
         let dir = std::path::Path::new(device_path)
             .parent()
             .map(|p| p.to_string_lossy().to_string())
@@ -172,7 +180,7 @@ impl PythonRunner {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| format!("启动 parse_calib.py 失败: {}", e))?;
+            .map_err(|e| CalibError::Unknown(format!("启动 parse_calib.py 失败: {}", e)))?;
 
         let mut logs = Vec::new();
 
@@ -197,7 +205,7 @@ impl PythonRunner {
         let status = child
             .wait()
             .await
-            .map_err(|e| format!("等待进程结束失败: {}", e))?;
+            .map_err(|e| CalibError::Unknown(format!("等待进程结束失败: {}", e)))?;
 
         let full_output = logs.join("\n");
 

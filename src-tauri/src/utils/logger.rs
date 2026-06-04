@@ -123,31 +123,28 @@ impl DeviceTestLogger {
 
     /// 记录详细的错误信息，包括错误类型和上下文
     pub fn log_error(&self, err: &crate::error::CalibError) {
-        self.error(&format!("[错误] {}", err));
+        self.error(&format!("[错误] [{}] {}", err.code(), err));
         // 对于特定错误类型，记录额外上下文
+        if let Some(detail) = err.detail() {
+            self.error(&format!("[错误详情] {}", detail));
+        }
         match err {
-            crate::error::CalibError::Adb(adb_err) => {
-                self.error(&format!("[错误详情] ADB操作失败: {}", adb_err));
-            }
-            crate::error::CalibError::StepFailed { step, message } => {
-                self.error(&format!("[错误详情] 步骤 '{}' 失败: {}", step, message));
-            }
-            crate::error::CalibError::CheckFailed(msg) => {
+            crate::error::CalibError::CheckResultFailed(msg) => {
                 self.error(&format!("[错误详情] 高通标定判定失败: {}", msg));
             }
-            crate::error::CalibError::VerifyFailed(msg) => {
+            crate::error::CalibError::CoverageVerifyFailed(msg) => {
                 self.error(&format!("[错误详情] 覆盖率验证失败: {}", msg));
             }
-            crate::error::CalibError::ThresholdExceeded => {
-                self.error(&format!("[错误详情] 标定参数超出阈值限制"));
+            crate::error::CalibError::ThresholdExceeded(detail) => {
+                self.error(&format!("[错误详情] 标定参数超出阈值: {}", detail));
             }
             crate::error::CalibError::PushFailed(path) => {
                 self.error(&format!("[错误详情] 文件推送失败，路径: {}", path));
             }
-            crate::error::CalibError::OssUpload(msg) => {
+            crate::error::CalibError::OssUploadFailed(msg) => {
                 self.error(&format!("[错误详情] OSS上传失败: {}", msg));
             }
-            crate::error::CalibError::ApiReport(msg) => {
+            crate::error::CalibError::ApiReportFailed(msg) => {
                 self.error(&format!("[错误详情] API上报失败: {}", msg));
             }
             crate::error::CalibError::DeviceOffline(serial) => {
@@ -159,7 +156,7 @@ impl DeviceTestLogger {
             crate::error::CalibError::BootTimeout => {
                 self.error(&format!("[错误详情] 设备重启后启动超时"));
             }
-            crate::error::CalibError::SfrFailed(msg) => {
+            crate::error::CalibError::SfrVerifyFailed(msg) => {
                 self.error(&format!("[错误详情] 清晰度标定验证失败: {}", msg));
             }
             crate::error::CalibError::CalibrationFileMissing(path) => {
@@ -180,8 +177,19 @@ impl DeviceTestLogger {
                     limit, current
                 ));
             }
+            crate::error::CalibError::TargetMeasurementError { actual, tolerance } => {
+                self.error(&format!(
+                    "[错误详情] 标定板测量误差 {:.3}mm > 容差 {:.3}mm",
+                    actual, tolerance
+                ));
+            }
+            crate::error::CalibError::TargetDetectionFailed { detail } => {
+                self.error(&format!("[错误详情] 标定板检测失败: {}", detail));
+            }
             _ => {}
         }
+        // 始终记录建议
+        self.info(&format!("[建议] {}", err.suggestion()));
     }
 
     pub fn log_path(&self) -> &PathBuf {

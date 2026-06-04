@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import type { SlotState } from '../composables/useCalibration';
 
 interface Props {
@@ -14,6 +14,8 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   (e: 'start', slotId: number): void;
 }>();
+
+const showDetail = ref(false);
 
 const statusText = computed(() => {
   switch (props.slot.status) {
@@ -44,8 +46,18 @@ const strokeOffset = computed(() => {
   return circumference - (props.slot.progress / 100) * circumference;
 });
 
+const isOperationalError = computed(() => {
+  return props.slot.error?.isOperational ?? false;
+});
+
 function handleStart() {
   emit('start', props.slot.slotId);
+}
+
+function toggleDetail() {
+  if (props.slot.error) {
+    showDetail.value = !showDetail.value;
+  }
 }
 </script>
 
@@ -88,6 +100,30 @@ function handleStart() {
       <div class="step-info" :class="[`step-status-${slot.status}`]">
         <div class="step-name">{{ slot.stepName }}</div>
         <div class="step-hint">{{ slot.hint }}</div>
+      </div>
+    </div>
+
+    <!-- 错误详情（仅在错误状态显示） -->
+    <div v-if="slot.error" class="error-section">
+      <div
+        class="error-toggle"
+        :class="{ 'operational': isOperationalError }"
+        @click="toggleDetail"
+      >
+        <span class="error-toggle-icon">{{ showDetail ? '▼' : '▶' }}</span>
+        <span class="error-toggle-text">
+          {{ isOperationalError ? '操作问题，可按建议排查' : '系统异常，请联系技术支持' }}
+        </span>
+      </div>
+      <div v-if="showDetail" class="error-detail">
+        <div v-if="slot.error.detail" class="error-detail-item">
+          <span class="error-detail-label">详细信息</span>
+          <span class="error-detail-value">{{ slot.error.detail }}</span>
+        </div>
+        <div class="error-detail-item">
+          <span class="error-detail-label">建议方案</span>
+          <span class="error-detail-value suggestion">{{ slot.error.suggestion }}</span>
+        </div>
       </div>
     </div>
 
@@ -396,6 +432,92 @@ function handleStart() {
   color: #6b7280;
   min-height: 20px;
   line-height: 1.5;
+}
+
+/* 错误详情区域 */
+.error-section {
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.error-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #991b1b;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.error-toggle:hover {
+  background: #fecaca;
+}
+
+.error-toggle.operational {
+  background: #fef3c7;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.error-toggle.operational:hover {
+  background: #fde68a;
+}
+
+.error-toggle-icon {
+  font-size: 10px;
+  width: 14px;
+  text-align: center;
+}
+
+.error-toggle-text {
+  font-weight: 500;
+}
+
+.error-detail {
+  margin-top: 6px;
+  padding: 10px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.error-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.error-detail-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #991b1b;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.error-detail-value {
+  font-size: 12px;
+  color: #7f1d1d;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.error-detail-value.suggestion {
+  color: #166534;
+  background: #dcfce7;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border-left: 3px solid #22c55e;
 }
 
 .result-area {

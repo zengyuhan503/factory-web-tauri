@@ -1,6 +1,7 @@
 use crate::adapters::adb::AdbExecutor;
 use crate::adapters::http_client::OssUploader;
 use crate::adapters::python_runner::{CheckStatus, PythonRunner};
+use crate::error::AdbError;
 use crate::adapters::sfr_runner::SfrRunner;
 use crate::models::{CalibResult, CalibStep, DeviceConfig, ThresholdConfig};
 use crate::utils::logger::DeviceTestLogger;
@@ -110,7 +111,7 @@ impl CalibrationEngine {
         self.adb
             .wait_for_device(30000)
             .await
-            .map_err(crate::error::CalibError::Adb)?;
+            .map_err(|e| e.to_calib_error())?;
         self.log_info("设备已连接并就绪");
 
         let work_dir = get_device_work_dir(&self.cpu_id);
@@ -198,7 +199,7 @@ impl CalibrationEngine {
                     );
                     self.log_error(&msg);
                     self.log_step_end(CalibStep::SfrAnalyze, false);
-                    let err = crate::error::CalibError::SfrFailed(msg);
+                    let err = crate::error::CalibError::SfrVerifyFailed(msg);
                     self.log_calib_error(&err);
                     return Err(err);
                 }
@@ -302,7 +303,7 @@ impl CalibrationEngine {
             }
             Err(e) => {
                 self.log_step_end(CalibStep::VerifyCoverage, false);
-                let err = crate::error::CalibError::VerifyFailed(e.clone());
+                let err = crate::error::CalibError::CoverageVerifyFailed(e.clone());
                 self.log_calib_error(&err);
                 return Err(err);
             }
@@ -319,7 +320,8 @@ impl CalibrationEngine {
 
         if !check_thresholds(&verify_data, &thresholds) {
             self.log_error("标定参数超出阈值限制");
-            let err = crate::error::CalibError::ThresholdExceeded;
+            let detail = format!("DOF: {:?}, RGB: {:?}, TOF: {:?}", verify_data.dof, verify_data.rgb, verify_data.tof);
+            let err = crate::error::CalibError::ThresholdExceeded(detail);
             self.log_calib_error(&err);
             return Err(err);
         }
@@ -352,14 +354,14 @@ impl CalibrationEngine {
                     format!("高通标定判定失败: {}", check_result.failures.join("; "))
                 };
                 self.log_error(&msg);
-                let err = crate::error::CalibError::CheckFailed(msg);
+                let err = crate::error::CalibError::CheckResultFailed(msg);
                 self.log_calib_error(&err);
                 return Err(err);
             }
             CheckStatus::Error => {
                 let msg = "标定结果判定执行错误".to_string();
                 self.log_error(&msg);
-                let err = crate::error::CalibError::CheckFailed(msg);
+                let err = crate::error::CalibError::CheckResultFailed(msg);
                 self.log_calib_error(&err);
                 return Err(err);
             }
@@ -465,8 +467,7 @@ impl CalibrationEngine {
                     }
                 },
             )
-            .await
-            .map_err(crate::error::CalibError::Python)?;
+            .await?;
 
         Ok(result)
     }
@@ -500,8 +501,7 @@ impl CalibrationEngine {
                     }
                 },
             )
-            .await
-            .map_err(crate::error::CalibError::Python)?;
+            .await?;
 
         Ok(())
     }
@@ -530,8 +530,7 @@ impl CalibrationEngine {
                     logger.python_log(log);
                 }
             })
-            .await
-            .map_err(crate::error::CalibError::Python)?;
+            .await?;
 
         Ok(())
     }
@@ -560,8 +559,7 @@ impl CalibrationEngine {
                     logger.python_log(log);
                 }
             })
-            .await
-            .map_err(crate::error::CalibError::Python)?;
+            .await?;
 
         Ok(result)
     }
@@ -604,7 +602,7 @@ impl CalibrationEngine {
         self.adb
             .shell("sync", 15000)
             .await
-            .map_err(crate::error::CalibError::Adb)?;
+            .map_err(|e| e.to_calib_error())?;
         self.log_info("sync 完成");
 
         // reboot
@@ -630,8 +628,8 @@ impl CalibrationEngine {
             }
             Err(e) => {
                 let err = match e {
-                    crate::error::AdbError::Timeout => crate::error::CalibError::BootTimeout,
-                    _ => crate::error::CalibError::Adb(e),
+                    AdbError::Timeout => crate::error::CalibError::BootTimeout,
+                    _ => e.to_calib_error(),
                 };
                 self.log_calib_error(&err);
                 return Err(err);
@@ -661,7 +659,7 @@ impl CalibrationEngine {
                 url
             }
             Err(e) => {
-                let err = crate::error::CalibError::OssUpload(e.to_string());
+                let err = crate::error::CalibError::OssUploadFailed(e.to_string());
                 self.log_calib_error(&err);
                 return Err(err);
             }
@@ -679,7 +677,7 @@ impl CalibrationEngine {
                 self.log_info("API上报成功");
             }
             Err(e) => {
-                let err = crate::error::CalibError::ApiReport(e.to_string());
+                let err = crate::error::CalibError::ApiReportFailed(e.to_string());
                 self.log_calib_error(&err);
                 return Err(err);
             }

@@ -3,6 +3,14 @@ import { listen } from '@tauri-apps/api/event';
 import { getSlotStatus, startDeviceTest, loadConfig } from '../services/tauriCommands';
 import type { DeviceSlot, DeviceConfig } from '../services/tauriCommands';
 
+export interface SlotError {
+  code: string;
+  message: string;
+  detail?: string;
+  suggestion: string;
+  isOperational: boolean;
+}
+
 export interface SlotState {
   slotId: number;
   serial: string | null;
@@ -12,6 +20,7 @@ export interface SlotState {
   stepName: string;
   hint: string;
   result: 'pending' | 'pass' | 'fail';
+  error?: SlotError;
 }
 
 // 支持最多9个槽位（九宫格）
@@ -75,6 +84,7 @@ export function useCalibration() {
         slot.status = 'connected';
         slot.stepName = '已连接';
         slot.hint = '点击启动按钮开始标定';
+        slot.error = undefined;
       }
     });
     listeners.push(unlistenConnected);
@@ -96,6 +106,7 @@ export function useCalibration() {
         slot.stepName = step_name;
         slot.progress = progress;
         slot.hint = hint;
+        slot.error = undefined;
       }
     });
     listeners.push(unlistenStep);
@@ -109,18 +120,33 @@ export function useCalibration() {
         slot.stepName = success ? '完成' : '失败';
         slot.hint = message;
         slot.progress = success ? 100 : slot.progress;
+        if (!success) {
+          slot.error = {
+            code: 'Z002',
+            message: message || '发生未知错误',
+            suggestion: '请联系技术支持排查',
+            isOperational: false,
+          };
+        }
       }
     });
     listeners.push(unlistenComplete);
 
     const unlistenError = await listen('device:error', (event) => {
-      const { slot_id, message } = event.payload as any;
+      const { slot_id, code, message, detail, suggestion, is_operational } = event.payload as any;
       const slot = slots.find(s => s.slotId === slot_id);
       if (slot) {
         slot.status = 'error';
         slot.result = 'fail';
-        slot.stepName = '失败';
+        slot.stepName = `失败 [${code}]`;
         slot.hint = message;
+        slot.error = {
+          code,
+          message,
+          detail,
+          suggestion,
+          isOperational: is_operational,
+        };
       }
     });
     listeners.push(unlistenError);
@@ -135,6 +161,7 @@ export function useCalibration() {
           slot.stepName = '已连接';
           slot.hint = '点击启动按钮开始标定';
           slot.result = 'pending';
+          slot.error = undefined;
         } else {
           Object.assign(slot, createEmptySlot(slot_id));
         }
@@ -164,6 +191,9 @@ export function useCalibration() {
       return;
     }
 
+    // 清除之前的错误状态
+    slot.error = undefined;
+
     const config: DeviceConfig = {
       is_rgb: globalConfig.is_rgb,
       is_tof: globalConfig.is_tof,
@@ -190,6 +220,12 @@ export function useCalibration() {
       slot.result = 'fail';
       slot.stepName = '失败';
       slot.hint = String(e);
+      slot.error = {
+        code: 'Z002',
+        message: String(e),
+        suggestion: '请联系技术支持排查',
+        isOperational: false,
+      };
     }
   }
 

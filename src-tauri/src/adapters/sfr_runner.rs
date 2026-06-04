@@ -71,7 +71,7 @@ impl SfrRunner {
                 );
                 on_log(&msg);
                 log::error!("[SFR/pull] {}", msg);
-                return Err(crate::error::CalibError::SfrFailed(msg));
+                return Err(crate::error::CalibError::SfrVerifyFailed(msg));
             }
             let msg = format!("已清空当前设备目录 {:?}", pull_target);
             on_log(&msg);
@@ -85,7 +85,7 @@ impl SfrRunner {
             let msg = format!("创建目录 {:?} 失败: {}", pull_target, e);
             on_log(&msg);
             log::error!("[SFR/pull] {}", msg);
-            return Err(crate::error::CalibError::SfrFailed(msg));
+            return Err(crate::error::CalibError::SfrVerifyFailed(msg));
         }
 
         let pull_target_str = pull_target.to_str().unwrap_or(".");
@@ -133,7 +133,7 @@ impl SfrRunner {
                 let msg = "无法找到设备上的 snapshot 目录，尝试的路径: /sdcard/snapshot, /storage/emulated/0/snapshot, /mnt/sdcard/snapshot".to_string();
                 on_log(&msg);
                 log::error!("[SFR/pull] {}", msg);
-                return Err(crate::error::CalibError::SfrFailed(msg));
+                return Err(crate::error::CalibError::SfrVerifyFailed(msg));
             }
         };
 
@@ -150,7 +150,7 @@ impl SfrRunner {
 
         let output = cmd.output().await.map_err(|e| {
             let msg = format!("adb pull 命令执行失败: {}", e);
-            crate::error::CalibError::SfrFailed(msg)
+            crate::error::CalibError::SfrVerifyFailed(msg)
         })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -162,7 +162,7 @@ impl SfrRunner {
         if !output.status.success() {
             let msg = format!("adb pull 失败: {} {}", stdout, stderr);
             log::error!("[SFR/pull] {}", msg);
-            return Err(crate::error::CalibError::SfrFailed(msg));
+            return Err(crate::error::CalibError::SfrVerifyFailed(msg));
         }
 
         // 验证本地是否确实有文件（不依赖 stdout 字符串匹配，避免 "10 files" 误判 "0 files"）
@@ -178,7 +178,7 @@ impl SfrRunner {
             );
             on_log(&msg);
             log::error!("[SFR/pull] {}", msg);
-            return Err(crate::error::CalibError::SfrFailed(msg));
+            return Err(crate::error::CalibError::SfrVerifyFailed(msg));
         }
 
         on_log(&format!("[SFR/pull] 成功拉取 {} 个文件到 {:?}", local_files.len(), pull_target));
@@ -206,7 +206,7 @@ impl SfrRunner {
             );
             on_log(&msg);
             log::error!("[SFR/analyze] {}", msg);
-            return Err(crate::error::CalibError::SfrFailed(msg));
+            return Err(crate::error::CalibError::SfrVerifyFailed(msg));
         }
 
         let image_dir_str = image_dir.to_str().unwrap_or(".");
@@ -229,7 +229,7 @@ impl SfrRunner {
             .spawn()
             .map_err(|e| {
                 let msg = format!("启动 SFR Python 脚本失败: {}", e);
-                crate::error::CalibError::SfrFailed(msg)
+                crate::error::CalibError::SfrVerifyFailed(msg)
             })?;
 
         let mut logs = Vec::new();
@@ -259,7 +259,7 @@ impl SfrRunner {
             .await
             .map_err(|e| {
                 let msg = format!("等待 SFR 进程结束失败: {}", e);
-                crate::error::CalibError::SfrFailed(msg)
+                crate::error::CalibError::SfrVerifyFailed(msg)
             })?;
 
         let exit_code = status.code().unwrap_or(3);
@@ -272,7 +272,7 @@ impl SfrRunner {
         // 解析 sfr50_summary.csv
         let summary_csv = image_dir.join("sfr50_summary.csv");
         let sfr_result = Self::parse_sfr_summary(&summary_csv, mean_avg50_min, cam_std_max, image_dir.to_path_buf())
-            .map_err(|e| crate::error::CalibError::SfrFailed(format!("解析 SFR 汇总表失败: {}", e)))?;
+            .map_err(|e| crate::error::CalibError::SfrVerifyFailed(format!("解析 SFR 汇总表失败: {}", e)))?;
         println!("exit_code: {}", exit_code);
         match exit_code {
             0 => {
@@ -312,13 +312,13 @@ impl SfrRunner {
                 };
                 on_log(&format!("[SFR] {}", msg));
                 log::error!("[SFR] {}", msg);
-                Err(crate::error::CalibError::SfrFailed(msg))
+                Err(crate::error::CalibError::SfrVerifyFailed(msg))
             }
             3 => {
                 let msg = "存在至少一张图片未检出棋盘格（或无有效 SFR 结果）".to_string();
                 on_log(&format!("[SFR] {}", msg));
                 log::error!("[SFR] {}", msg);
-                Err(crate::error::CalibError::SfrFailed(msg))
+                Err(crate::error::CalibError::SfrVerifyFailed(msg))
             }
             _ => {
                 let full_output = logs.join("\n");
@@ -332,7 +332,7 @@ impl SfrRunner {
                     }
                 );
                 log::error!("[SFR/analyze] {}", msg);
-                Err(crate::error::CalibError::SfrFailed(msg))
+                Err(crate::error::CalibError::SfrVerifyFailed(msg))
             }
         }
     }

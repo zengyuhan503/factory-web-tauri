@@ -1,3 +1,4 @@
+use crate::error::CalibError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -25,10 +26,33 @@ pub struct CompleteEvent {
     pub oss_url: Option<String>,
 }
 
+/// 结构化错误事件，提供友好的错误展示
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorEvent {
     pub slot_id: u8,
+    /// 错误码，如 "C003"
+    pub code: String,
+    /// 给用户看的简短错误说明
     pub message: String,
+    /// 详细技术信息（可为空）
+    pub detail: Option<String>,
+    /// 建议的解决方案
+    pub suggestion: String,
+    /// 是否为产线操作问题（非系统bug）
+    pub is_operational: bool,
+}
+
+impl ErrorEvent {
+    pub fn from_calib_error(slot_id: u8, err: &CalibError) -> Self {
+        Self {
+            slot_id,
+            code: err.code().to_string(),
+            message: err.user_message(),
+            detail: err.detail(),
+            suggestion: err.suggestion().to_string(),
+            is_operational: err.is_operational_error(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
