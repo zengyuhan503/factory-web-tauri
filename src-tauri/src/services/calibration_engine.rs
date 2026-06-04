@@ -6,7 +6,7 @@ use crate::adapters::sfr_runner::SfrRunner;
 use crate::models::{CalibResult, CalibStep, DeviceConfig, ThresholdConfig};
 use crate::utils::logger::DeviceTestLogger;
 use crate::utils::paths::get_device_work_dir;
-use crate::utils::verify::{check_thresholds, verify_coverage};
+use crate::utils::verify::verify_coverage;
 use std::path::Path;
 use std::sync::Arc;
 use tauri::Manager;
@@ -319,9 +319,19 @@ impl CalibrationEngine {
         self.log_info(&format!("阈值配置 - DOF: {:?}, RGB: {:?}, TOF: {:?}",
             thresholds.dof, thresholds.rgb, thresholds.tof));
 
-        if !check_thresholds(&verify_data, &thresholds) {
-            self.log_error("标定参数超出阈值限制");
-            let detail = format!("DOF: {:?}, RGB: {:?}, TOF: {:?}", verify_data.dof, verify_data.rgb, verify_data.tof);
+        let (threshold_ok, failures) = crate::utils::verify::check_thresholds_detail(
+            &verify_data, &thresholds, self.config.is_rgb, self.config.is_tof,
+        );
+
+        if !threshold_ok {
+            let mut detail = String::from("覆盖率验证未通过:");
+            for f in &failures {
+                detail.push_str(&format!(
+                    "\n  - {} 摄像头 [{}] 覆盖率 {:.1}% < 阈值 {:.1}%",
+                    f.camera_type, f.camera_name, f.coverage, f.threshold
+                ));
+            }
+            self.log_error(&detail);
             let err = crate::error::CalibError::ThresholdExceeded(detail);
             self.log_calib_error(&err);
             let _ = self.generate_calib_failure_report(&err, &dataset_path, &app).await;

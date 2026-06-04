@@ -22,9 +22,9 @@ impl Default for AppConfig {
             is_tof: false,
             qvr_type: "1".to_string(),
             file_max: 200,
-            verify_dof: None,
-            verify_rgb: None,
-            verify_tof: None,
+            verify_dof: Some(95.0),
+            verify_rgb: Some(95.0),
+            verify_tof: Some(95.0),
             slot_count: 4,
             enable_sfr: true,
             sfr_mean_avg50_min: Some(0.18),
@@ -55,9 +55,9 @@ pub struct ThresholdConfig {
 impl Default for ThresholdConfig {
     fn default() -> Self {
         Self {
-            dof: None,
-            rgb: None,
-            tof: None,
+            dof: Some(95.0),
+            rgb: Some(95.0),
+            tof: Some(95.0),
         }
     }
 }

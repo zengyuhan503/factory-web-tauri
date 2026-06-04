@@ -63,6 +63,64 @@ pub fn verify_coverage(
     Ok(result)
 }
 
+/// 覆盖率检查失败的单项信息
+#[derive(Debug, Clone)]
+pub struct CoverageFailure {
+    pub camera_type: String,
+    pub camera_name: String,
+    pub coverage: f64,
+    pub threshold: f64,
+}
+
+/// 检查阈值，返回 (是否通过, 失败项列表)
+/// 失败项包含具体的摄像头名称、覆盖率和阈值
+pub fn check_thresholds_detail(
+    results: &VerifyData,
+    thresholds: &crate::models::ThresholdConfig,
+    is_rgb: bool,
+    is_tof: bool,
+) -> (bool, Vec<CoverageFailure>) {
+    let mut failures = Vec::new();
+
+    let camera_names = vec![
+        ("dof", vec!["trackingA", "trackingB", "ctrl-trackingA", "ctrl-trackingB"]),
+        ("rgb", if is_rgb { vec!["rgb-right", "rgb-left"] } else { vec![] }),
+        ("tof", if is_tof { vec!["depth"] } else { vec![] }),
+    ];
+
+    for (ctype, names) in camera_names {
+        if names.is_empty() {
+            continue;
+        }
+        let (values, threshold) = match ctype {
+            "dof" => (&results.dof, thresholds.dof),
+            "rgb" => (&results.rgb, thresholds.rgb),
+            "tof" => (&results.tof, thresholds.tof),
+            _ => continue,
+        };
+
+        if let (Some(vals), Some(th)) = (values, threshold) {
+            for (i, &v) in vals.iter().enumerate() {
+                if v < th {
+                    failures.push(CoverageFailure {
+                        camera_type: match ctype {
+                            "dof" => "6DOF",
+                            "rgb" => "RGB",
+                            "tof" => "TOF",
+                            _ => ctype,
+                        }.to_string(),
+                        camera_name: names.get(i).unwrap_or(&"未知").to_string(),
+                        coverage: v,
+                        threshold: th,
+                    });
+                }
+            }
+        }
+    }
+
+    (failures.is_empty(), failures)
+}
+
 pub fn check_thresholds(results: &VerifyData, thresholds: &crate::models::ThresholdConfig) -> bool {
     fn check_array(arr: &Option<Vec<f64>>, threshold: Option<f64>) -> bool {
         match (arr, threshold) {
