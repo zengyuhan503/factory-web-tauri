@@ -148,7 +148,7 @@ function onCancel() {
           <label class="switch-label">
             <span>开启 SFR 清晰度测试</span>
             <input v-model="form.enable_sfr" type="checkbox" class="switch-input" />
-            <span class="switch-slider" :class="{ 'is-on': form.enable_sfr }""></span>
+            <span class="switch-slider" :class="{ 'is-on': form.enable_sfr }"></span>
           </label>
         </div>
 

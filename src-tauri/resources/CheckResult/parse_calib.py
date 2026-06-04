@@ -14,7 +14,6 @@ VQ920 XR 设备标定结果解析脚本
 - 24: 不正常（陀螺仪 bias 超阈值）
 - 25: 不正常（缺少 IMUNoise 节点）
 - 26: 不正常（IMUNoise 缺少必填字段）
-- 27: 不正常（检测率低于合格阈值）
 - 10: 输入目录不存在
 - 11: 缺少 device_calibration.xml
 - 12: 缺少 Calib.log
@@ -50,8 +49,8 @@ THRESHOLDS = {
     "focal_length_diff_pct": 2.0,  # 同组焦距差异阈值 (%)
     "principal_point_shift_pct": 3.0,  # 同组主点偏移阈值 (% of image size)
     "outlier_pct": 0.1,  # 离群点比例阈值 (%)
-    "accel_bias_max": 0.6,   # 加速度计 bias 分量绝对值上限
-    "gyro_bias_max": 0.06,   # 陀螺仪 bias 分量绝对值上限
+    "accel_bias_max": 0.2,   # 加速度计 bias 分量绝对值上限
+    "gyro_bias_max": 0.05,   # 陀螺仪 bias 分量绝对值上限
 }
 
 
@@ -65,7 +64,6 @@ EXIT_FAIL_ACCEL_BIAS = 23  # 不正常：加速度计 bias 超阈值
 EXIT_FAIL_GYRO_BIAS = 24  # 不正常：陀螺仪 bias 超阈值
 EXIT_FAIL_IMUNOISE_NODE_MISSING = 25  # 不正常：XML 缺少 IMUNoise 节点
 EXIT_FAIL_IMUNOISE_FIELD_MISSING = 26  # 不正常：IMUNoise 缺少必填字段
-EXIT_FAIL_DETECTION_RATE = 27  # 不正常：至少一个相机检测率低于合格阈值
 EXIT_DIR_NOT_FOUND = 10  # 执行错误：输入目录不存在
 EXIT_XML_MISSING = 11  # 执行错误：缺少 device_calibration.xml
 EXIT_LOG_MISSING = 12  # 执行错误：缺少 Calib.log
@@ -185,11 +183,12 @@ def parse_xml(xml_path):
             imu["delta"] = float(si.attrib.get("delta", 0))
         noise = sf.find("IMUNoise")
         if noise is not None:
-            # 必检项(默认): 只要求移动状态噪声字段。
-            # stationaryAccelNoise / stationaryGyroNoise 改为可选，不再作为默认失败项。
+            # 必检项: IMUNoise 需要包含以下 4 个字段
             required_noise_fields = {
                 "movingAccelNoise": "movingAccelNoise",
                 "movingGyroNoise": "movingGyroNoise",
+                "stationaryAccelNoise": "stationaryAccelNoise",
+                "stationaryGyroNoise": "stationaryGyroNoise",
             }
             for attr_name, display_name in required_noise_fields.items():
                 if attr_name not in noise.attrib:
@@ -361,12 +360,12 @@ def parse_log(log_path):
     for m in min_ang_accel_pattern.finditer(content):
         results["special_checks"].append(m.group(0))
 
-    # # 示例: Too few measurements to calculate IMU0 Accel noise when stationary
-    # imu_noise_pattern = re.compile(
-    #     r"Too few measurements to calculate IMU\d+\s+Accel noise when stationary"
-    # )
-    # for m in imu_noise_pattern.finditer(content):
-    #     results["special_checks"].append(m.group(0))
+    # 示例: Too few measurements to calculate IMU0 Accel noise when stationary
+    imu_noise_pattern = re.compile(
+        r"Too few measurements to calculate IMU\d+\s+Accel noise when stationary"
+    )
+    for m in imu_noise_pattern.finditer(content):
+        results["special_checks"].append(m.group(0))
 
     # Calibration time
     time_pattern = re.compile(
@@ -435,34 +434,11 @@ def collect_bias_violations(imu):
     return bias_violations
 
 
-def calc_detection_rate(cam_det_data):
-    """计算单个摄像头的综合检测率（%）。
-    cam_det_data: {target_name: (detected, total), ...}
-    """
-    total_det = sum(v[0] for v in cam_det_data.values())
-    total_all = sum(v[1] for v in cam_det_data.values())
-    return (total_det / total_all * 100) if total_all > 0 else 0.0
-
-
-def collect_detection_rate_failures(det):
-    """收集检测率低于阈值的摄像头。
-    返回: [(cam_name, rate), ...]
-    """
-    failures = []
-    threshold = THRESHOLDS["detection_rate"]["acceptable"]
-    for cam_name in det:
-        rate = calc_detection_rate(det[cam_name])
-        if rate < threshold:
-            failures.append((cam_name, rate))
-    return failures
-
-
 def collect_failure_codes(log_data, imu, xml_missing_checks=None):
     """收集失败原因对应的退出码。"""
     fail_codes = []
     intrin = log_data.get("intrinsic", {})
     ext = log_data.get("extrinsic", {})
-    det = log_data.get("detection", {})
     xml_missing_checks = xml_missing_checks or []
 
     # 1) 内参 RMS 超阈值
@@ -493,11 +469,6 @@ def collect_failure_codes(log_data, imu, xml_missing_checks=None):
     if any("缺少 IMUNoise 字段" in item for item in xml_missing_checks):
         fail_codes.append(EXIT_FAIL_IMUNOISE_FIELD_MISSING)
 
-    # 6) 检测率低于合格阈值
-    det_rate_failures = collect_detection_rate_failures(det)
-    if det_rate_failures:
-        fail_codes.append(EXIT_FAIL_DETECTION_RATE)
-
     # 去重并保持顺序
     dedup = []
     for code in fail_codes:
@@ -509,20 +480,6 @@ def collect_failure_codes(log_data, imu, xml_missing_checks=None):
 def evaluate_overall_status(log_data, imu, xml_missing_checks=None):
     """返回总体状态字符串: PASS / FAIL。"""
     return "PASS" if not collect_failure_codes(log_data, imu, xml_missing_checks) else "FAIL"
-
-
-def resolve_status_and_exit_code(log_data, imu, xml_missing_checks=None):
-    """统一计算总评与退出码，确保 PASS 仅在 EXIT_OK 时成立。"""
-    fail_codes = collect_failure_codes(log_data, imu, xml_missing_checks)
-    if not fail_codes:
-        exit_code = EXIT_OK
-    elif len(fail_codes) == 1:
-        exit_code = fail_codes[0]
-    else:
-        exit_code = EXIT_FAIL
-
-    overall = "PASS" if exit_code == EXIT_OK else "FAIL"
-    return overall, fail_codes, exit_code
 
 
 def generate_report(device_uid, cameras, imu, log_data, xml_missing_checks=None):
@@ -568,21 +525,20 @@ def generate_report(device_uid, cameras, imu, log_data, xml_missing_checks=None)
 
     # ── 标定板检测率 ──
     section("标定板检测率 & 清晰度评估")
-    w(f"  {'摄像头':<18} {'A板':>12} {'B板':>12} {'综合检测率':>12} {'合格阈值':>12} {'结果':>10}")
-    w("  " + "-" * 80)
+    w(f"  {'摄像头':<18} {'A板':>12} {'B板':>12} {'综合检测率':>12} {'评级':>10}")
+    w("  " + "-" * 70)
     det = log_data["detection"]
-    det_rate_threshold = THRESHOLDS["detection_rate"]["acceptable"]
     for name in sorted(cameras, key=lambda n: cameras[n]["id"]):
         if name in det:
             d = det[name]
             targets = sorted(d.keys())
             det_a = d.get(targets[0], (0, 0)) if len(targets) > 0 else (0, 0)
             det_b = d.get(targets[1], (0, 0)) if len(targets) > 1 else (0, 0)
-            rate = calc_detection_rate(d)
-            ok = rate >= det_rate_threshold
-            icon = "[OK]" if ok else "[!!]"
-            result = "PASS" if ok else "FAIL"
-            w(f"  {name:<18} {det_a[0]:>4}/{det_a[1]:<4} {det_b[0]:>4}/{det_b[1]:<4} {rate:>10.1f}%  {det_rate_threshold:>10.1f}%  {icon} {result}")
+            total_det = det_a[0] + det_b[0]
+            total_all = det_a[1] + det_b[1]
+            rate = (total_det / total_all * 100) if total_all > 0 else 0
+            r = rating(rate, THRESHOLDS["detection_rate"], lower_is_better=False)
+            w(f"  {name:<18} {det_a[0]:>4}/{det_a[1]:<4} {det_b[0]:>4}/{det_b[1]:<4} {rate:>10.1f}%  {rating_icon(r)} {r}")
 
     # ── 内参精度 ──
     section("内参标定精度 (RMS 残差)")
@@ -750,7 +706,10 @@ def generate_report(device_uid, cameras, imu, log_data, xml_missing_checks=None)
     worst_det_cam = None
     worst_det_rate = 100
     for cam_name in det:
-        rate = calc_detection_rate(det[cam_name])
+        d = det[cam_name]
+        total_det = sum(v[0] for v in d.values())
+        total_all = sum(v[1] for v in d.values())
+        rate = (total_det / total_all * 100) if total_all > 0 else 0
         if rate < worst_det_rate:
             worst_det_rate = rate
             worst_det_cam = cam_name
@@ -758,21 +717,12 @@ def generate_report(device_uid, cameras, imu, log_data, xml_missing_checks=None)
     joint_rms = ext.get("CalibrateIMU-robust-Trajectory-Extrinsics-Intrinsics-Full", {}).get("rms", "N/A")
     full_ext_rms = ext.get("Full-Extrinsics+Intrinsics-Extrinsics", {}).get("rms", "N/A")
 
-    overall, fail_codes, _ = resolve_status_and_exit_code(log_data, imu, xml_missing_checks)
-
-    # 收集检测率失败详情，用于总评显示
-    det_rate_failures = collect_detection_rate_failures(det)
+    overall = evaluate_overall_status(log_data, imu)
 
     w(f"  总评            : {overall}")
     w(f"  联合标定残差     : {joint_rms:.4f} px" if isinstance(joint_rms, float) else f"  联合标定残差     : {joint_rms}")
     w(f"  内参最弱摄像头   : {worst_intrinsic_cam} ({worst_intrinsic_rms:.4f} px)")
     w(f"  检测率最低摄像头 : {worst_det_cam} ({worst_det_rate:.1f}%)")
-
-    if det_rate_failures:
-        w()
-        w("  检测率不合格:")
-        for cam_name, rate in det_rate_failures:
-            w(f"    - {cam_name}: {rate:.1f}% (阈值 {THRESHOLDS['detection_rate']['acceptable']}%)")
 
     if issues:
         w()
@@ -798,7 +748,6 @@ def main():
     - 24: 不正常（陀螺仪 bias 超阈值）
     - 25: 不正常（缺少 IMUNoise 节点）
     - 26: 不正常（IMUNoise 缺少必填字段）
-    - 27: 不正常（检测率低于合格阈值）
     - 10: 输入目录不存在
     - 11: 缺少 device_calibration.xml
     - 12: 缺少 Calib.log
@@ -893,8 +842,15 @@ def main():
         print(f"执行错误: {exc}")
         return EXIT_UNKNOWN_ERROR
 
-    # 成功执行后按统一规则返回：仅 EXIT_OK 记为 PASS
-    overall, fail_codes, exit_code = resolve_status_and_exit_code(log_data, imu, xml_missing_checks)
+    # 成功执行后按总评返回：PASS=0，FAIL=细分业务码
+    overall = evaluate_overall_status(log_data, imu, xml_missing_checks)
+    fail_codes = collect_failure_codes(log_data, imu, xml_missing_checks)
+    if overall == "PASS":
+        exit_code = EXIT_OK
+    elif len(fail_codes) == 1:
+        exit_code = fail_codes[0]
+    else:
+        exit_code = EXIT_FAIL
     print(f"\nCALIB_PARSE_STATUS={overall}")
     if fail_codes:
         print(f"FAIL_CODES={','.join(str(c) for c in fail_codes)}")
