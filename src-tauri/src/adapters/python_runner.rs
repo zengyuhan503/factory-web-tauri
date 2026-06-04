@@ -88,13 +88,24 @@ impl PythonRunner {
             }
         }
 
-        // 读取 stderr
+        // 读取 stderr（某些脚本将 status:ok 输出到 stderr）
         if let Some(stderr) = child.stderr.take() {
             let reader = BufReader::new(stderr);
             let mut lines = reader.lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 logs.push(line.clone());
-                on_log(&line);
+
+                if line.contains("status:ok") {
+                    if let Some(path_idx) = line.find("path:") {
+                        result = line[path_idx + 5..].to_string();
+                    }
+                    _resolved = true;
+                    on_log(&line);
+                } else if line.contains("status:error") {
+                    on_log(&line);
+                } else {
+                    on_log(&line);
+                }
             }
         }
 
