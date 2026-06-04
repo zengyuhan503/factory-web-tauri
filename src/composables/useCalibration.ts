@@ -152,6 +152,15 @@ export function useCalibration() {
     });
     listeners.push(unlistenError);
 
+    const unlistenUpdate = await listen('device:update', (event) => {
+      const { slot_id, cpu_id } = event.payload as any;
+      const slot = slots.find(s => s.slotId === slot_id);
+      if (slot) {
+        slot.cpuId = cpu_id || null;
+      }
+    });
+    listeners.push(unlistenUpdate);
+
     const unlistenReset = await listen('device:reset', (event) => {
       const { slot_id, status, serial, cpu_id } = event.payload as any;
       const slot = slots.find(s => s.slotId === slot_id);

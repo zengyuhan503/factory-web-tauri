@@ -49,10 +49,9 @@ impl CalibrationPool {
                     slot.cpu_id = Some(id.clone());
                     // 通知前端更新 CPU ID 显示
                     let _ = app.emit_all(
-                        "device:connected",
+                        "device:update",
                         serde_json::json!({
                             "slot_id": slot_id,
-                            "serial": serial,
                             "cpu_id": id,
                         }),
                     );
