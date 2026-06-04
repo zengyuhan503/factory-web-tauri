@@ -59,8 +59,11 @@ impl PythonRunner {
                 logs.push(line.clone());
 
                 if line.contains("status:ok") {
-                    result = line[line.find("status:ok").unwrap() + 10..].to_string();
+                    if let Some(path_idx) = line.find("path:") {
+                        result = line[path_idx + 5..].to_string();
+                    }
                     resolved = true;
+                    on_log(&line);
                 } else if line.contains("status:error") {
                     return Err(format!("Python 脚本错误: {}", line));
                 } else {
