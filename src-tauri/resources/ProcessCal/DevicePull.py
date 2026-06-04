@@ -42,6 +42,8 @@ def adbPullData(device_id_in):
 def getTheDeviceDataPath():
     print(str("等待设备插入..."))
     os.system("adb wait-for-device")
+    # 打印校准结果路径
+    print(f"校准结果存储路径: {CALIBRAT_RESULT_PATH}")
     device_id = getDeviceId()
     if os.path.exists(CALIBRAT_RESULT_PATH + device_id):
         shutil.rmtree(CALIBRAT_RESULT_PATH + device_id)
