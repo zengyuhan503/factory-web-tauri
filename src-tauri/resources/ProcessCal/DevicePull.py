@@ -7,6 +7,7 @@ import sys
 import shutil
 import datetime
 import fnmatch
+import subprocess
 
 os.chdir(os.path.split(os.path.realpath(__file__))[0])
 
@@ -37,7 +38,12 @@ def adbPullData(device_id_in):
     else:
         ADB_PULL_CMD = "adb pull /data/local/tmp/qvrdataset/ " + CALIBRAT_RESULT_PATH + device_id_in
     print(ADB_PULL_CMD)
-    os.system(ADB_PULL_CMD)
+    result = subprocess.run(ADB_PULL_CMD, shell=True, capture_output=True, text=True)
+    all_output = (result.stdout + result.stderr).split('\n')
+    for line in all_output:
+        line = line.strip()
+        if 'files pulled' in line:
+            print(line)
 
 def getTheDeviceDataPath():
     print(str("等待设备插入..."))
@@ -133,4 +139,5 @@ if have_rgb:
 
 RETURN_STATUS_OK = "status:ok,path:" + SLAM_DATASET_PATH
 
-sys.exit(RETURN_STATUS_OK)
+print(RETURN_STATUS_OK)
+sys.exit(0)
