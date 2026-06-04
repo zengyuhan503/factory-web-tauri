@@ -104,9 +104,29 @@ impl PythonRunner {
             .map_err(|e| CalibError::Unknown(format!("等待进程结束失败: {}", e)))?;
 
         let exit_code = status.code().unwrap_or(-1);
+        let has_ok = logs.iter().any(|l| l.contains("status:ok"));
+
+        log::info!(
+            "[PythonRunner] {} exit_code={} resolved={} has_ok={}",
+            script_name, exit_code, _resolved, has_ok
+        );
+
         // 如果脚本已明确返回 status:ok，忽略 exit code（某些脚本 exit code 非 0 但有成功输出）
-        if exit_code != 0 && !_resolved {
+        if exit_code != 0 && !has_ok {
+            log::warn!(
+                "[PythonRunner] {} 失败，未检测到 status:ok，日志:\n{}",
+                script_name,
+                logs.join("\n")
+            );
             return Err(parse_python_calib_error(script_name, &logs));
+        }
+
+        if has_ok {
+            log::info!(
+                "[PythonRunner] {} 成功，result='{}'",
+                script_name,
+                result
+            );
         }
 
         Ok(PythonResult {
