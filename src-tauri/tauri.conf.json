@@ -58,7 +58,7 @@
         "fullscreen": false,
         "height": 800,
         "resizable": false,
-        "title": "标定测试",
+        "title": "SkyCalib VR设备标定工具",
         "width": 1200
       }
     ]

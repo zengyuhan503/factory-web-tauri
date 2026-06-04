@@ -125,51 +125,14 @@ impl CalibrationEngine {
         self.log_info(&format!("检查标定文件数量上限: {}", self.config.file_max));
         self.check_file_limit().await?;
 
-        // 3. SFR 清晰度标定验证
-        // 3.1 SfrPull - 拉取清晰度标定文件
-        self.log_step_start(CalibStep::SfrPull);
-        self.emit_step(CalibStep::SfrPull, &app).await;
-        let sfr_runner = SfrRunner::new(serial.clone(), self.resource_dir.clone());
-        let sfr_image_dir = match sfr_runner
-            .pull_sfr_files(&work_dir, &self.cpu_id, |log| {
-                let _ = app.emit_all(
-                    "device:log",
-                    serde_json::json!({
-                        "slot_id": self.slot_id,
-                        "message": log,
-                        "level": "info",
-                    }),
-                );
-                if let Some(ref logger) = self.logger {
-                    logger.python_log(log);
-                }
-            })
-            .await
-        {
-            Ok(dir) => {
-                self.log_step_end(CalibStep::SfrPull, true);
-                self.log_info(&format!("SFR 文件拉取成功: {:?}", dir));
-                dir
-            }
-            Err(e) => {
-                self.log_step_end(CalibStep::SfrPull, false);
-                self.log_calib_error(&e);
-                return Err(e);
-            }
-        };
-
-        // 3.2 SfrAnalyze - 运行清晰度分析
-        println!("开始清晰度分析...");
-        self.log_step_start(CalibStep::SfrAnalyze);
-        self.emit_step(CalibStep::SfrAnalyze, &app).await;
-        let sfr_mean_min = self.config.sfr_mean_avg50_min.unwrap_or(0.18);
-        let sfr_std_max = self.config.sfr_cam_std_max.unwrap_or(0.05);
-        let sfr_result = match sfr_runner
-            .analyze_sfr(
-                &sfr_image_dir,
-                sfr_mean_min,
-                sfr_std_max,
-                |log| {
+        // 3. SFR 清晰度标定验证（可选）
+        if self.config.enable_sfr {
+            // 3.1 SfrPull - 拉取清晰度标定文件
+            self.log_step_start(CalibStep::SfrPull);
+            self.emit_step(CalibStep::SfrPull, &app).await;
+            let sfr_runner = SfrRunner::new(serial.clone(), self.resource_dir.clone());
+            let sfr_image_dir = match sfr_runner
+                .pull_sfr_files(&work_dir, &self.cpu_id, |log| {
                     let _ = app.emit_all(
                         "device:log",
                         serde_json::json!({
@@ -181,60 +144,101 @@ impl CalibrationEngine {
                     if let Some(ref logger) = self.logger {
                         logger.python_log(log);
                     }
-                },
-            )
-            .await
-        {
-            Ok(result) => {
-                // 检查 SFR 结果是否真正合格（脚本可能返回 Ok 但结果不合格）
-                let sfr_pass = result.device_mean_avg50 >= sfr_mean_min
-                    && result.device_std_avg50 <= sfr_std_max;
-
-                if !sfr_pass {
-                    let msg = format!(
-                        "SFR 清晰度验证未通过: mean_avg50={:.4}(阈值≥{:.4}), std_avg50={:.6}(阈值≤{:.4}), 判级={}",
-                        result.device_mean_avg50, sfr_mean_min,
-                        result.device_std_avg50, sfr_std_max,
-                        result.device_grade
-                    );
-                    self.log_error(&msg);
-                    self.log_step_end(CalibStep::SfrAnalyze, false);
-                    let err = crate::error::CalibError::SfrVerifyFailed(msg);
-                    self.log_calib_error(&err);
-                    return Err(err);
+                })
+                .await
+            {
+                Ok(dir) => {
+                    self.log_step_end(CalibStep::SfrPull, true);
+                    self.log_info(&format!("SFR 文件拉取成功: {:?}", dir));
+                    dir
                 }
+                Err(e) => {
+                    self.log_step_end(CalibStep::SfrPull, false);
+                    self.log_calib_error(&e);
+                    return Err(e);
+                }
+            };
 
-                self.log_step_end(CalibStep::SfrAnalyze, true);
-                self.log_info("清晰度标定验证通过");
-                result
-            }
-            Err(e) => {
-                self.log_step_end(CalibStep::SfrAnalyze, false);
-                self.log_calib_error(&e);
-                return Err(e);
-            }
-        };
+            // 3.2 SfrAnalyze - 运行清晰度分析
+            println!("开始清晰度分析...");
+            self.log_step_start(CalibStep::SfrAnalyze);
+            self.emit_step(CalibStep::SfrAnalyze, &app).await;
+            let sfr_mean_min = self.config.sfr_mean_avg50_min.unwrap_or(0.18);
+            let sfr_std_max = self.config.sfr_cam_std_max.unwrap_or(0.05);
+            let sfr_result = match sfr_runner
+                .analyze_sfr(
+                    &sfr_image_dir,
+                    sfr_mean_min,
+                    sfr_std_max,
+                    |log| {
+                        let _ = app.emit_all(
+                            "device:log",
+                            serde_json::json!({
+                                "slot_id": self.slot_id,
+                                "message": log,
+                                "level": "info",
+                            }),
+                        );
+                        if let Some(ref logger) = self.logger {
+                            logger.python_log(log);
+                        }
+                    },
+                )
+                .await
+            {
+                Ok(result) => {
+                    // 检查 SFR 结果是否真正合格（脚本可能返回 Ok 但结果不合格）
+                    let sfr_pass = result.device_mean_avg50 >= sfr_mean_min
+                        && result.device_std_avg50 <= sfr_std_max;
 
-        // 3.3 SfrReport - 生成清晰度验证报告（无论成功失败都生成）
-        println!("开始生成清晰度验证报告...");
-        self.log_step_start(CalibStep::SfrReport);
-        self.emit_step(CalibStep::SfrReport, &app).await;
-        let report = crate::utils::sfr_report::SfrReportData::from_result(
-            &self.serial,
-            &self.cpu_id,
-            &sfr_result,
-        );
-        match self.generate_and_push_sfr_report(&report, &sfr_image_dir, &work_dir, &app,
-        ).await {
-            Ok(_) => {
-                self.log_step_end(CalibStep::SfrReport, true);
-                self.log_info("清晰度验证报告生成并推送完成");
+                    if !sfr_pass {
+                        let msg = format!(
+                            "SFR 清晰度验证未通过: mean_avg50={:.4}(阈值≥{:.4}), std_avg50={:.6}(阈值≤{:.4}), 判级={}",
+                            result.device_mean_avg50, sfr_mean_min,
+                            result.device_std_avg50, sfr_std_max,
+                            result.device_grade
+                        );
+                        self.log_error(&msg);
+                        self.log_step_end(CalibStep::SfrAnalyze, false);
+                        let err = crate::error::CalibError::SfrVerifyFailed(msg);
+                        self.log_calib_error(&err);
+                        return Err(err);
+                    }
+
+                    self.log_step_end(CalibStep::SfrAnalyze, true);
+                    self.log_info("清晰度标定验证通过");
+                    result
+                }
+                Err(e) => {
+                    self.log_step_end(CalibStep::SfrAnalyze, false);
+                    self.log_calib_error(&e);
+                    return Err(e);
+                }
+            };
+
+            // 3.3 SfrReport - 生成清晰度验证报告（无论成功失败都生成）
+            println!("开始生成清晰度验证报告...");
+            self.log_step_start(CalibStep::SfrReport);
+            self.emit_step(CalibStep::SfrReport, &app).await;
+            let report = crate::utils::sfr_report::SfrReportData::from_result(
+                &self.serial,
+                &self.cpu_id,
+                &sfr_result,
+            );
+            match self.generate_and_push_sfr_report(&report, &sfr_image_dir, &work_dir, &app,
+            ).await {
+                Ok(_) => {
+                    self.log_step_end(CalibStep::SfrReport, true);
+                    self.log_info("清晰度验证报告生成并推送完成");
+                }
+                Err(e) => {
+                    self.log_warn(&format!("清晰度验证报告生成失败（非致命）: {}", e));
+                    self.log_step_end(CalibStep::SfrReport, false);
+                    // 报告生成失败不阻断后续流程
+                }
             }
-            Err(e) => {
-                self.log_warn(&format!("清晰度验证报告生成失败（非致命）: {}", e));
-                self.log_step_end(CalibStep::SfrReport, false);
-                // 报告生成失败不阻断后续流程
-            }
+        } else {
+            self.log_info("SFR 清晰度测试已关闭，跳过清晰度验证步骤");
         }
 
         // 4. DevicePull

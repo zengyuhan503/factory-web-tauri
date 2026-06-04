@@ -51,6 +51,7 @@ const globalConfig = reactive({
   verify_dof: null as number | null,
   verify_rgb: null as number | null,
   verify_tof: null as number | null,
+  enable_sfr: true,
   sfr_mean_avg50_min: 0.18 as number | null,
   sfr_cam_std_max: 0.05 as number | null,
 });
@@ -152,11 +153,13 @@ export function useCalibration() {
     listeners.push(unlistenError);
 
     const unlistenReset = await listen('device:reset', (event) => {
-      const { slot_id, status } = event.payload as any;
+      const { slot_id, status, serial, cpu_id } = event.payload as any;
       const slot = slots.find(s => s.slotId === slot_id);
       if (slot) {
         if (status === 'connected') {
           slot.status = 'connected';
+          slot.serial = serial || slot.serial;
+          slot.cpuId = cpu_id || slot.cpuId;
           slot.progress = 0;
           slot.stepName = '已连接';
           slot.hint = '点击启动按钮开始标定';
@@ -204,6 +207,7 @@ export function useCalibration() {
         rgb: globalConfig.verify_rgb,
         tof: globalConfig.verify_tof,
       },
+      enable_sfr: globalConfig.enable_sfr,
       sfr_mean_avg50_min: globalConfig.sfr_mean_avg50_min,
       sfr_cam_std_max: globalConfig.sfr_cam_std_max,
     };

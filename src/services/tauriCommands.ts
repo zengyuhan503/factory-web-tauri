@@ -11,6 +11,7 @@ export interface DeviceConfig {
     rgb: number | null;
     tof: number | null;
   };
+  enable_sfr: boolean;
   sfr_mean_avg50_min: number | null;
   sfr_cam_std_max: number | null;
 }
@@ -24,6 +25,7 @@ export interface AppConfig {
   verify_rgb: number | null;
   verify_tof: number | null;
   slot_count: number;
+  enable_sfr: boolean;
   sfr_mean_avg50_min: number | null;
   sfr_cam_std_max: number | null;
 }

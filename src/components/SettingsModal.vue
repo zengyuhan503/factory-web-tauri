@@ -12,6 +12,7 @@ interface Props {
     verify_dof: number | null;
     verify_rgb: number | null;
     verify_tof: number | null;
+    enable_sfr: boolean;
     sfr_mean_avg50_min: number | null;
     sfr_cam_std_max: number | null;
   };
@@ -20,7 +21,7 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void;
-  (e: 'save', config: Props['initialConfig']): void;
+  (e: 'save', config: Props['initialConfig'] & { enable_sfr: boolean }): void;
 }>();
 
 const SYSTEM_PASSWORD = 'ssnwt';
@@ -144,13 +145,23 @@ function onCancel() {
         </div>
 
         <div class="form-group">
-          <label>SFR 清晰度均值阈值</label>
-          <input v-model.number="form.sfr_mean_avg50_min" type="number" step="0.01" class="form-input" placeholder="默认 0.18" />
+          <label class="switch-label">
+            <span>开启 SFR 清晰度测试</span>
+            <input v-model="form.enable_sfr" type="checkbox" class="switch-input" />
+            <span class="switch-slider" :class="{ 'is-on': form.enable_sfr }""></span>
+          </label>
         </div>
 
-        <div class="form-group">
-          <label>SFR 摄像头间标准差阈值</label>
-          <input v-model.number="form.sfr_cam_std_max" type="number" step="0.01" class="form-input" placeholder="默认 0.05" />
+        <div v-if="form.enable_sfr" class="sfr-thresholds">
+          <div class="form-group">
+            <label>SFR 清晰度均值阈值</label>
+            <input v-model.number="form.sfr_mean_avg50_min" type="number" step="0.01" class="form-input" placeholder="默认 0.18" />
+          </div>
+
+          <div class="form-group">
+            <label>SFR 摄像头间标准差阈值</label>
+            <input v-model.number="form.sfr_cam_std_max" type="number" step="0.01" class="form-input" placeholder="默认 0.05" />
+          </div>
         </div>
 
         <div class="modal-actions">
@@ -301,5 +312,57 @@ function onCancel() {
 
 .btn-secondary:hover {
   background: #e5e7eb;
+}
+
+/* 开关样式 */
+.switch-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.switch-input {
+  display: none;
+}
+
+.switch-slider {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: #d1d5db;
+  border-radius: 12px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.switch-slider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.switch-slider.is-on {
+  background: #3b82f6;
+}
+
+.switch-slider.is-on::after {
+  transform: translateX(20px);
+}
+
+.sfr-thresholds {
+  padding-left: 16px;
+  border-left: 3px solid #e5e7eb;
+  margin-bottom: 16px;
 }
 </style>

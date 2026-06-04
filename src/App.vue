@@ -32,6 +32,7 @@ async function handleSaveConfig(config: typeof globalConfig) {
       verify_rgb: config.verify_rgb,
       verify_tof: config.verify_tof,
       slot_count: 4,
+      enable_sfr: config.enable_sfr,
       sfr_mean_avg50_min: config.sfr_mean_avg50_min,
       sfr_cam_std_max: config.sfr_cam_std_max,
     });
@@ -44,7 +45,7 @@ async function handleSaveConfig(config: typeof globalConfig) {
 <template>
   <div class="app">
     <header class="app-header">
-      <h1 class="app-title">标定测试</h1>
+      <h1 class="app-title">SkyCalib VR设备标定工具</h1>
       <button class="settings-btn" @click="openSettings">
         <svg class="settings-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/>

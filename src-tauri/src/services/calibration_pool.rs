@@ -93,6 +93,7 @@ impl CalibrationPool {
                         slot.step_name = "已连接".to_string();
                         slot.hint = "点击启动按钮开始标定".to_string();
                         slot.result = SlotResult::Pending;
+                        // 保留 cpu_id 和 serial
                     } else {
                         log::info!("[槽位{}] 设备 {} 已断开，10秒后重置为空槽位", slot_id, serial_clone);
                         slot.serial = None;
@@ -108,6 +109,8 @@ impl CalibrationPool {
                         serde_json::json!({
                             "slot_id": slot_id,
                             "status": if still_connected { "connected" } else { "empty" },
+                            "serial": if still_connected { slot.serial.as_deref() } else { None },
+                            "cpu_id": slot.cpu_id.as_deref(),
                         }),
                     );
                 }
