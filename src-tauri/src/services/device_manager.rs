@@ -87,26 +87,29 @@ impl DeviceManager {
                         if !already_assigned {
                             for slot in slots_guard.iter_mut() {
                                 if slot.status == SlotStatus::Empty {
-                                    // 尝试获取 CPU ID
-                                    let cpu_id = {
-                                        let adb = AdbExecutor::new(device.serial.clone());
+                                    // 尝试获取 CPU ID，失败时重试一次
+                                    let mut cpu_id = None;
+                                    let adb = AdbExecutor::new(device.serial.clone());
+                                    for attempt in 1..=2 {
                                         match adb.get_cpu_id().await {
                                             Ok(id) => {
                                                 let id = id.trim().to_string();
                                                 if !id.is_empty() {
-                                                    log::info!("设备 {} CPU ID: {}", device.serial, id);
-                                                    Some(id)
+                                                    log::info!("设备 {} 第{}次获取 CPU ID 成功: {}", device.serial, attempt, id);
+                                                    cpu_id = Some(id);
+                                                    break;
                                                 } else {
-                                                    log::warn!("设备 {} CPU ID 为空", device.serial);
-                                                    None
+                                                    log::warn!("设备 {} 第{}次获取 CPU ID 为空", device.serial, attempt);
                                                 }
                                             }
                                             Err(e) => {
-                                                log::warn!("获取设备 {} CPU ID 失败: {}", device.serial, e);
-                                                None
+                                                log::warn!("设备 {} 第{}次获取 CPU ID 失败: {}", device.serial, attempt, e);
                                             }
                                         }
-                                    };
+                                        if attempt == 1 {
+                                            sleep(Duration::from_secs(1)).await;
+                                        }
+                                    }
 
                                     slot.serial = Some(device.serial.clone());
                                     slot.cpu_id = cpu_id.clone();

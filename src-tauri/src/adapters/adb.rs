@@ -32,12 +32,13 @@ impl AdbExecutor {
         let stderr = String::from_utf8_lossy(&output.stderr);
 
         if !output.status.success() {
-            let err_str = format!("{}\n{}", stdout, stderr);
+            let err_str = format!("stdout={} stderr={}", stdout.trim(), stderr.trim());
             return Err(AdbError::CommandFailed(err_str));
         }
 
-        if stderr.to_lowercase().contains("error:") {
-            return Err(AdbError::CommandFailed(stderr.to_string()));
+        // stderr 非空时记录日志但不返回错误（某些 ADB 版本会在 stderr 输出警告）
+        if !stderr.trim().is_empty() {
+            log::debug!("ADB 命令 stderr: {}", stderr.trim());
         }
 
         Ok(stdout.trim().to_string())
@@ -83,8 +84,17 @@ impl AdbExecutor {
         }
     }
 
+    /// 获取设备 CPU ID（序列号），使用 soc0 serial_number
     pub async fn get_cpu_id(&self) -> Result<String, AdbError> {
-        self.shell("cat /sys/devices/soc0/serial_number", 10000).await
+        match self.shell("cat /sys/devices/soc0/serial_number", 5000).await {
+            Ok(id) if !id.trim().is_empty() && id.trim() != "0000000000" => {
+                Ok(id.trim().to_string())
+            }
+            Ok(id) => Err(AdbError::CpuIdFailed(format!(
+                "文件存在但内容为空或零值: '{}'", id
+            ))),
+            Err(e) => Err(AdbError::CpuIdFailed(format!("读取失败: {}", e))),
+        }
     }
 
     pub async fn get_android_version(&self) -> Result<String, AdbError> {
