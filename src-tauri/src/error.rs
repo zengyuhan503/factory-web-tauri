@@ -371,7 +371,7 @@ pub fn parse_python_calib_error(script_name: &str, logs: &[String]) -> CalibErro
                 || full_log.contains("Checkerboard detection")
                 || full_log.contains("not enough images")
             {
-                let detail = extract_failure_reason(&full_log)
+                let detail = extract_python_error_message(&full_log)
                     .unwrap_or_else(|| "标定板特征点检测失败".to_string());
                 return CalibError::TargetDetectionFailed { detail };
             }
@@ -384,8 +384,8 @@ pub fn parse_python_calib_error(script_name: &str, logs: &[String]) -> CalibErro
                 return CalibError::ReprojectionErrorExceeded;
             }
 
-            // 通用标定失败，尝试提取原因
-            let reason = extract_failure_reason(&full_log)
+            // 通用标定失败，优先提取 status:error + 后面的中文描述
+            let reason = extract_python_error_message(&full_log)
                 .unwrap_or_else(|| "标定算法执行失败".to_string());
             CalibError::CamCalibrationFailed(reason)
         }
@@ -417,6 +417,40 @@ pub fn parse_python_calib_error(script_name: &str, logs: &[String]) -> CalibErro
             CalibError::Unknown(format!("{} 执行失败: {}", script_name, reason))
         }
     }
+}
+
+/// 从Python脚本输出中提取用户友好的错误信息
+/// 优先提取 status:error + 后面的中文描述，其次提取 Failure reason
+fn extract_python_error_message(log: &str) -> Option<String> {
+    // 优先提取 "status:error + xxx"（Python脚本中的中文错误提示）
+    if let Some(idx) = log.find("status:error +") {
+        let start = idx + "status:error +".len();
+        let rest = &log[start..];
+        let reason = rest
+            .lines()
+            .map(|l| l.trim())
+            .find(|l| !l.is_empty())
+            .unwrap_or("");
+        if !reason.is_empty() && reason.len() < 500 {
+            return Some(reason.to_string());
+        }
+    }
+
+    // 其次提取 "Failure reason: xxx"
+    if let Some(idx) = log.find("Failure reason:") {
+        let start = idx + "Failure reason:".len();
+        let rest = &log[start..];
+        let reason = rest
+            .lines()
+            .map(|l| l.trim())
+            .find(|l| !l.is_empty())
+            .unwrap_or("");
+        if !reason.is_empty() && reason.len() < 500 {
+            return Some(reason.to_string());
+        }
+    }
+
+    extract_failure_reason(log)
 }
 
 /// 从Python输出中提取 Failure reason 或关键错误信息
