@@ -105,6 +105,7 @@ impl CalibrationEngine {
         self.log_info(&format!("[槽位{}] 开始标定流程，设备: {}", self.slot_id, serial));
 
         // 1. 等待设备
+        println!("等待设备连接...");
         self.log_action("ADB", "等待设备连接");
         self.adb
             .wait_for_device(30000)
@@ -119,6 +120,7 @@ impl CalibrationEngine {
         })?;
 
         // 2. 文件数量检查
+        println!("检查标定文件数量上限: {}", self.config.file_max);
         self.log_info(&format!("检查标定文件数量上限: {}", self.config.file_max));
         self.check_file_limit().await?;
 
@@ -156,6 +158,7 @@ impl CalibrationEngine {
         };
 
         // 3.2 SfrAnalyze - 运行清晰度分析
+        println!("开始清晰度分析...");
         self.log_step_start(CalibStep::SfrAnalyze);
         self.emit_step(CalibStep::SfrAnalyze, &app).await;
         let sfr_mean_min = self.config.sfr_mean_avg50_min.unwrap_or(0.18);
@@ -212,6 +215,7 @@ impl CalibrationEngine {
         };
 
         // 3.3 SfrReport - 生成清晰度验证报告（无论成功失败都生成）
+        println!("开始生成清晰度验证报告...");
         self.log_step_start(CalibStep::SfrReport);
         self.emit_step(CalibStep::SfrReport, &app).await;
         let report = crate::utils::sfr_report::SfrReportData::from_result(
@@ -233,6 +237,7 @@ impl CalibrationEngine {
         }
 
         // 4. DevicePull
+        println!("开始拉取数据集...");
         self.log_step_start(CalibStep::DevicePull);
         self.emit_step(CalibStep::DevicePull, &app).await;
         let dataset_path = match self.run_device_pull(&app).await {
@@ -249,8 +254,10 @@ impl CalibrationEngine {
                 return Err(e);
             }
         };
+        println!("dataset_path: {}", dataset_path);
 
         // 4. CAM Cali
+        println!("dataset_path 开始摄像头标定...");
         self.log_step_start(CalibStep::CamCali);
         self.emit_step(CalibStep::CamCali, &app).await;
         match self.run_cam_cali(&dataset_path, &app).await {
@@ -267,6 +274,7 @@ impl CalibrationEngine {
         }
 
         // 5. ConvertSlamYaml
+        println!("开始转换 SLAM YAML 文件...");
         self.log_step_start(CalibStep::ConvertYaml);
         self.emit_step(CalibStep::ConvertYaml, &app).await;
         match self.run_convert_yaml(&dataset_path, &app).await {
@@ -283,6 +291,7 @@ impl CalibrationEngine {
         }
 
         // 6. VerifyCoverage
+        println!("开始验证数据...");
         self.log_step_start(CalibStep::VerifyCoverage);
         self.emit_step(CalibStep::VerifyCoverage, &app).await;
         let verify_data = match verify_coverage(&dataset_path, self.config.is_rgb, self.config.is_tof) {
@@ -317,6 +326,7 @@ impl CalibrationEngine {
         self.log_info("阈值检查通过");
 
         // 7. CheckResult
+        println!("开始检查标定结果...");
         self.log_step_start(CalibStep::CheckResult);
         self.emit_step(CalibStep::CheckResult, &app).await;
         let check_result = match self.run_check_result(&dataset_path, &app).await {
@@ -356,6 +366,7 @@ impl CalibrationEngine {
         }
 
         // 8. PushAndUpload
+        println!("开始上传标定结果...");
         self.log_step_start(CalibStep::PushAndUpload);
         self.emit_step(CalibStep::PushAndUpload, &app).await;
         let oss_url = match self.push_and_upload(&dataset_path, &serial).await {
