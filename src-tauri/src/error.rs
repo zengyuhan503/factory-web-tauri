@@ -352,6 +352,25 @@ pub fn parse_python_calib_error(script_name: &str, logs: &[String]) -> CalibErro
 
     match script_name {
         "ProcessCam.py" => {
+            // 标定工具缺少执行权限
+            if full_log.contains("PermissionError")
+                && full_log.contains("Permission denied")
+            {
+                if let Some(path_start) = full_log.find("Permission denied: '") {
+                    let path = &full_log[path_start + 20..];
+                    if let Some(path_end) = path.find('\'') {
+                        let tool_path = &path[..path_end];
+                        return CalibError::CamCalibrationFailed(format!(
+                            "标定工具缺少执行权限: {}，请执行 chmod +x {}",
+                            tool_path, tool_path
+                        ));
+                    }
+                }
+                return CalibError::CamCalibrationFailed(
+                    "标定工具缺少执行权限，请执行 chmod +x".to_string()
+                );
+            }
+
             // 标定板测量误差过大
             if let Some(caps) = regex::Regex::new(
                 r"measurement error of\s+([\d.]+)mm\s*>\s*tolerance\s+([\d.]+)mm",
