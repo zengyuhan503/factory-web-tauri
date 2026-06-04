@@ -1,6 +1,6 @@
 use crate::adapters::adb::AdbExecutor;
 use crate::adapters::http_client::OssUploader;
-use crate::adapters::python_runner::{CheckStatus, PythonRunner};
+use crate::adapters::python_runner::{CheckStatus, CheckResultDetail, PythonRunner};
 use crate::error::AdbError;
 use crate::adapters::sfr_runner::SfrRunner;
 use crate::models::{CalibResult, CalibStep, DeviceConfig, ThresholdConfig};
@@ -268,6 +268,7 @@ impl CalibrationEngine {
             Err(e) => {
                 self.log_step_end(CalibStep::CamCali, false);
                 self.log_calib_error(&e);
+                let _ = self.generate_calib_failure_report(&e, &dataset_path, &app).await;
                 return Err(e);
             }
         }
@@ -285,6 +286,7 @@ impl CalibrationEngine {
             Err(e) => {
                 self.log_step_end(CalibStep::ConvertYaml, false);
                 self.log_calib_error(&e);
+                let _ = self.generate_calib_failure_report(&e, &dataset_path, &app).await;
                 return Err(e);
             }
         }
@@ -303,6 +305,7 @@ impl CalibrationEngine {
                 self.log_step_end(CalibStep::VerifyCoverage, false);
                 let err = crate::error::CalibError::CoverageVerifyFailed(e.clone());
                 self.log_calib_error(&err);
+                let _ = self.generate_calib_failure_report(&err, &dataset_path, &app).await;
                 return Err(err);
             }
         };
@@ -321,6 +324,7 @@ impl CalibrationEngine {
             let detail = format!("DOF: {:?}, RGB: {:?}, TOF: {:?}", verify_data.dof, verify_data.rgb, verify_data.tof);
             let err = crate::error::CalibError::ThresholdExceeded(detail);
             self.log_calib_error(&err);
+            let _ = self.generate_calib_failure_report(&err, &dataset_path, &app).await;
             return Err(err);
         }
         self.log_info("阈值检查通过");
@@ -329,27 +333,41 @@ impl CalibrationEngine {
         println!("开始检查标定结果...");
         self.log_step_start(CalibStep::CheckResult);
         self.emit_step(CalibStep::CheckResult, &app).await;
-        let check_result = match self.run_check_result(&dataset_path, &app).await {
-            Ok(result) => {
+        let check_detail = match self.run_check_result_detail(&dataset_path, &app).await {
+            Ok(detail) => {
                 self.log_step_end(CalibStep::CheckResult, true);
-                result
+                detail
             }
             Err(e) => {
                 self.log_step_end(CalibStep::CheckResult, false);
                 self.log_calib_error(&e);
+                // 尝试生成失败报告
+                let _ = self.generate_calib_failure_report(&e, &dataset_path, &app).await;
                 return Err(e);
             }
         };
 
-        match check_result.status {
+        // 7.5 生成标定报告（无论通过/失败都生成）
+        let report_result = self
+            .generate_calib_report(&check_detail,
+                &dataset_path,
+                &app,
+            )
+            .await;
+        match report_result {
+            Ok(_) => self.log_info("标定报告生成完成"),
+            Err(e) => self.log_warn(&format!("标定报告生成失败（非致命）: {}", e)),
+        }
+
+        match check_detail.status {
             CheckStatus::Pass => {
                 self.log_info("高通标定判定通过");
             }
             CheckStatus::Fail => {
-                let msg = if check_result.failures.is_empty() {
+                let msg = if check_detail.failures.is_empty() {
                     "高通标定判定失败".to_string()
                 } else {
-                    format!("高通标定判定失败: {}", check_result.failures.join("; "))
+                    format!("高通标定判定失败: {}", check_detail.failures.join("; "))
                 };
                 self.log_error(&msg);
                 let err = crate::error::CalibError::CheckResultFailed(msg);
@@ -470,11 +488,40 @@ impl CalibrationEngine {
         Ok(result)
     }
 
+    /// 确保标定工具 XRCalib 有执行权限
+    async fn ensure_calib_tool_executable(&self) {
+        let xrcalib_path = self.resource_dir.join("tools").join("qvr_calib").join("XRCalib");
+        if xrcalib_path.exists() {
+            match tokio::process::Command::new("chmod")
+                .arg("+x")
+                .arg(&xrcalib_path)
+                .output()
+                .await
+            {
+                Ok(o) if o.status.success() => {
+                    self.log_info(&format!("已设置标定工具执行权限: {:?}", xrcalib_path));
+                }
+                Ok(o) => {
+                    let err = String::from_utf8_lossy(&o.stderr);
+                    self.log_warn(&format!("设置标定工具权限失败: {}", err));
+                }
+                Err(e) => {
+                    self.log_warn(&format!("无法执行 chmod: {}", e));
+                }
+            }
+        } else {
+            self.log_warn(&format!("标定工具不存在: {:?}", xrcalib_path));
+        }
+    }
+
     async fn run_cam_cali(
         &self,
         dataset_path: &str,
         app: &tauri::AppHandle,
     ) -> Result<(), crate::error::CalibError> {
+        // 调用前先确保标定工具有执行权限
+        self.ensure_calib_tool_executable().await;
+
         let runner = PythonRunner::new(self.serial.clone(), self.resource_dir.clone());
         let slot_id = self.slot_id;
         let app_clone = app.clone();
@@ -545,6 +592,35 @@ impl CalibrationEngine {
 
         let result = runner
             .run_check_result(dataset_path, move |log| {
+                let _ = app_clone.emit_all(
+                    "device:log",
+                    serde_json::json!({
+                        "slot_id": slot_id,
+                        "message": log,
+                        "level": "info",
+                    }),
+                );
+                if let Some(ref logger) = logger_arc {
+                    logger.python_log(log);
+                }
+            })
+            .await?;
+
+        Ok(result)
+    }
+
+    async fn run_check_result_detail(
+        &self,
+        dataset_path: &str,
+        app: &tauri::AppHandle,
+    ) -> Result<crate::adapters::python_runner::CheckResultDetail, crate::error::CalibError> {
+        let runner = PythonRunner::new(self.serial.clone(), self.resource_dir.clone());
+        let slot_id = self.slot_id;
+        let app_clone = app.clone();
+        let logger_arc = self.logger.clone();
+
+        let result = runner
+            .run_check_result_detail(dataset_path, move |log| {
                 let _ = app_clone.emit_all(
                     "device:log",
                     serde_json::json!({
@@ -747,6 +823,152 @@ impl CalibrationEngine {
             }
         }
 
+        Ok(())
+    }
+
+    /// 生成标定报告（JSON + TXT + PDF）
+    async fn generate_calib_report(
+        &self,
+        check_detail: &CheckResultDetail,
+        dataset_path: &str,
+        _app: &tauri::AppHandle,
+    ) -> Result<(), String> {
+        let dir = Path::new(dataset_path)
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| dataset_path.to_string());
+
+        let report_dir = Path::new(&dir).join("calib");
+        std::fs::create_dir_all(&report_dir).map_err(|e| e.to_string())?;
+
+        // 从 parse_calib.py 的 JSON 构建报告数据
+        let calib_detail = if let Some(ref json) = check_detail.json_data {
+            serde_json::from_value::<crate::utils::calib_report::CalibDetail>(json.clone())
+                .map_err(|e| format!("解析标定 JSON 失败: {}", e))?
+        } else {
+            return Err("标定 JSON 数据不存在".to_string());
+        };
+
+        let report = crate::utils::calib_report::CalibReportData {
+            sn: self.serial.clone(),
+            cpu_id: self.cpu_id.clone(),
+            generated_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+            calib: calib_detail,
+            result: crate::utils::calib_report::CalibOverallResult {
+                overall: if check_detail.status == CheckStatus::Pass {
+                    "PASS".to_string()
+                } else {
+                    "FAIL".to_string()
+                },
+                failures: check_detail.failures.clone(),
+            },
+        };
+
+        // 生成 JSON 报告
+        match crate::utils::calib_report::generate_json_report(&report, &report_dir,
+        ) {
+            Ok(path) => self.log_info(&format!("标定 JSON 报告已生成: {}", path)),
+            Err(e) => self.log_warn(&format!("生成 JSON 失败: {}", e)),
+        }
+
+        // 生成 TXT 报告
+        match crate::utils::calib_report::generate_text_report(&report, &report_dir,
+        ) {
+            Ok(path) => self.log_info(&format!("标定 TXT 报告已生成: {}", path)),
+            Err(e) => self.log_warn(&format!("生成 TXT 失败: {}", e)),
+        }
+
+        // 生成 PDF 报告
+        match crate::utils::calib_report::generate_pdf_report(
+            &report, &report_dir, &self.resource_dir,
+        ) {
+            Ok(path) => self.log_info(&format!("标定 PDF 报告已生成: {}", path)),
+            Err(e) => self.log_warn(&format!("生成 PDF 失败: {}", e)),
+        }
+
+        self.log_info(&format!("标定报告目录: {:?}", report_dir));
+        Ok(())
+    }
+
+    /// 在标定流程失败时生成简化报告
+    async fn generate_calib_failure_report(
+        &self,
+        error: &crate::error::CalibError,
+        dataset_path: &str,
+        _app: &tauri::AppHandle,
+    ) -> Result<(), String> {
+        let dir = Path::new(dataset_path)
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| dataset_path.to_string());
+
+        // 尝试运行 parse_calib.py 获取已有数据
+        let runner = PythonRunner::new(self.serial.clone(), self.resource_dir.clone());
+        let json_data = runner
+            .run_check_result_detail(dataset_path, |_log| {})
+            .await
+            .ok()
+            .and_then(|d| d.json_data);
+
+        // 构造报告
+        let report = if let Some(json) = json_data {
+            // 使用已有数据
+            let calib_detail =
+                serde_json::from_value::<crate::utils::calib_report::CalibDetail>(json)
+                    .map_err(|e| e.to_string())?;
+            crate::utils::calib_report::CalibReportData {
+                sn: self.serial.clone(),
+                cpu_id: self.cpu_id.clone(),
+                generated_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                calib: calib_detail,
+                result: crate::utils::calib_report::CalibOverallResult {
+                    overall: "FAIL".to_string(),
+                    failures: vec![error.to_string()],
+                },
+            }
+        } else {
+            // 没有任何数据，生成极简报告
+            crate::utils::calib_report::CalibReportData {
+                sn: self.serial.clone(),
+                cpu_id: self.cpu_id.clone(),
+                generated_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                calib: crate::utils::calib_report::CalibDetail {
+                    device_uid: self.cpu_id.clone(),
+                    cameras: serde_json::Value::Object(serde_json::Map::new()),
+                    imu: serde_json::Value::Object(serde_json::Map::new()),
+                    log_data: serde_json::Value::Object(serde_json::Map::new()),
+                    consistency: vec![],
+                    xml_missing_checks: vec![],
+                    results: crate::utils::calib_report::CalibResults {
+                        intrinsic: vec![],
+                        extrinsic: vec![],
+                        consistency: vec![],
+                        imu_bias: vec![],
+                        xml_checks: vec![],
+                    },
+                    overall: "FAIL".to_string(),
+                    fail_codes: vec![],
+                },
+                result: crate::utils::calib_report::CalibOverallResult {
+                    overall: "FAIL".to_string(),
+                    failures: vec![error.to_string()],
+                },
+            }
+        };
+
+        // 生成报告
+        let report_dir = Path::new(&dir).join("calib");
+        let _ = std::fs::create_dir_all(&report_dir);
+
+        let _ = crate::utils::calib_report::generate_json_report(&report, &report_dir,
+        );
+        let _ = crate::utils::calib_report::generate_text_report(&report, &report_dir,
+        );
+        let _ = crate::utils::calib_report::generate_pdf_report(
+            &report, &report_dir, &self.resource_dir,
+        );
+
+        self.log_info(&format!("失败标定报告已生成: {:?}", report_dir));
         Ok(())
     }
 }

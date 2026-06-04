@@ -87,7 +87,7 @@ impl CalibrationPool {
             let slots_clone2 = slots_clone_for_reset.clone();
             let slot_id = slot_id;
             tokio::spawn(async move {
-                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(20)).await;
 
                 let adb = AdbExecutor::new(serial_clone.clone());
                 let still_connected = adb.is_connected().await;
@@ -95,7 +95,7 @@ impl CalibrationPool {
                 let mut slots = slots_clone2.lock().await;
                 if let Some(slot) = slots.get_mut(slot_id as usize) {
                     if still_connected {
-                        log::info!("[槽位{}] 设备 {} 仍在连接，10秒后恢复为可测试状态", slot_id, serial_clone);
+                        log::info!("[槽位{}] 设备 {} 仍在连接，20秒后恢复为可测试状态", slot_id, serial_clone);
                         slot.status = SlotStatus::Connected;
                         slot.progress = 0;
                         slot.step_name = "已连接".to_string();
@@ -103,7 +103,7 @@ impl CalibrationPool {
                         slot.result = SlotResult::Pending;
                         // 保留 cpu_id 和 serial
                     } else {
-                        log::info!("[槽位{}] 设备 {} 已断开，10秒后重置为空槽位", slot_id, serial_clone);
+                        log::info!("[槽位{}] 设备 {} 已断开，20秒后重置为空槽位", slot_id, serial_clone);
                         slot.serial = None;
                         slot.cpu_id = None;
                         slot.status = SlotStatus::Empty;
@@ -137,7 +137,7 @@ impl CalibrationPool {
                         slot.hint = "标定成功".to_string();
                         slot.result = SlotResult::Pass;
                     }
-                    // 标定成功也10秒后恢复
+                    // 标定成功也20秒后恢复
                     schedule_reset(app);
                 }
                 Err(e) => {
@@ -154,7 +154,7 @@ impl CalibrationPool {
 
                     let error_event = ErrorEvent::from_calib_error(slot_id, &e);
                     let _ = app.emit_all("device:error", error_event);
-                    // 标定失败10秒后恢复
+                    // 标定失败20秒后恢复
                     schedule_reset(app);
                 }
             }

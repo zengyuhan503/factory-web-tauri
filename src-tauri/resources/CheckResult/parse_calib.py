@@ -482,6 +482,143 @@ def evaluate_overall_status(log_data, imu, xml_missing_checks=None):
     return "PASS" if not collect_failure_codes(log_data, imu, xml_missing_checks) else "FAIL"
 
 
+def generate_json_data(device_uid, cameras, imu, log_data, xml_missing_checks=None):
+    """生成与 tt.json 中 calib 字段兼容的 JSON 数据结构"""
+    xml_missing_checks = xml_missing_checks or []
+
+    # results 字段：各项 PASS/FAIL 判定
+    results = {
+        "intrinsic": [],
+        "extrinsic": [],
+        "consistency": [],
+        "imu_bias": [],
+        "xml_checks": [],
+    }
+
+    # 内参判定
+    intrin = log_data.get("intrinsic", {})
+    for name in sorted(cameras, key=lambda n: cameras[n]["id"]):
+        if name in intrin:
+            d = intrin[name]
+            lim = intrinsic_rms_limit(name)
+            ok = d["rms"] <= lim
+            results["intrinsic"].append({
+                "camera": name,
+                "rms": d["rms"],
+                "threshold": lim,
+                "result": "PASS" if ok else "FAIL",
+            })
+
+    # 外参判定
+    ext = log_data.get("extrinsic", {})
+    for stage, info in ext.items():
+        if stage == "baselines":
+            continue
+        if stage == "Full-Extrinsics+Intrinsics-Extrinsics":
+            lim = THRESHOLDS["full_extrinsics_intrinsics_rms_max"]
+            ok = info["rms"] < lim
+            results["extrinsic"].append({
+                "stage": stage,
+                "rms": info["rms"],
+                "threshold": lim,
+                "strict_less": True,
+                "result": "PASS" if ok else "FAIL",
+            })
+        elif stage.startswith("CalibrateIMU-robust"):
+            lim = THRESHOLDS["joint_rms"]["acceptable"]
+            ok = info["rms"] <= lim
+            results["extrinsic"].append({
+                "stage": stage,
+                "rms": info["rms"],
+                "threshold": lim,
+                "strict_less": False,
+                "result": "PASS" if ok else "FAIL",
+            })
+
+    # consistency 判定
+    consistency_list = []
+    pairs = [
+        ("trackingA", "trackingB"),
+        ("ctrl-trackingA", "ctrl-trackingB"),
+        ("rgb-left", "rgb-right"),
+    ]
+    for n1, n2 in pairs:
+        if n1 not in cameras or n2 not in cameras:
+            continue
+        c1, c2 = cameras[n1], cameras[n2]
+        fl1, fl2 = c1["focal_length"][0], c2["focal_length"][0]
+        fl_diff_pct = abs(fl1 - fl2) / ((fl1 + fl2) / 2) * 100
+
+        pp1, pp2 = c1["principal_point"], c2["principal_point"]
+        pp_shift = (abs(pp1[0] - pp2[0]), abs(pp1[1] - pp2[1]))
+
+        img_size = max(c1["size"])
+        pp_shift_pct = math.sqrt(pp_shift[0] ** 2 + pp_shift[1] ** 2) / img_size * 100
+
+        ok = fl_diff_pct <= THRESHOLDS["focal_length_diff_pct"] and pp_shift_pct <= THRESHOLDS["principal_point_shift_pct"]
+
+        consistency_list.append({
+            "label": f"{n1} vs {n2}",
+            "fl_diff_pct": fl_diff_pct,
+            "pp_shift_str": f"({pp_shift[0]:.1f}, {pp_shift[1]:.1f})",
+            "ok": ok,
+        })
+
+        results["consistency"].append({
+            "label": f"{n1} vs {n2}",
+            "fl_diff_pct": fl_diff_pct,
+            "pp_shift_str": f"({pp_shift[0]:.1f}, {pp_shift[1]:.1f})",
+            "result": "PASS" if ok else "FAIL",
+        })
+
+    # IMU bias 判定
+    if "aBias" in imu:
+        for i, v in enumerate(imu["aBias"]):
+            ok = abs(v) <= THRESHOLDS["accel_bias_max"]
+            results["imu_bias"].append({
+                "item": f"Accel bias[{i}]",
+                "value": v,
+                "threshold": THRESHOLDS["accel_bias_max"],
+                "result": "PASS" if ok else "FAIL",
+            })
+    if "wBias" in imu:
+        for i, v in enumerate(imu["wBias"]):
+            ok = abs(v) <= THRESHOLDS["gyro_bias_max"]
+            results["imu_bias"].append({
+                "item": f"Gyro bias[{i}]",
+                "value": v,
+                "threshold": THRESHOLDS["gyro_bias_max"],
+                "result": "PASS" if ok else "FAIL",
+            })
+
+    # XML checks
+    imunoise_missing = any("缺少 IMUNoise 节点" in item for item in xml_missing_checks)
+    results["xml_checks"].append({
+        "item": "IMUNoise 节点",
+        "exists": not imunoise_missing,
+        "result": "PASS" if not imunoise_missing else "FAIL",
+    })
+    for field in ["movingAccelNoise", "movingGyroNoise", "stationaryAccelNoise", "stationaryGyroNoise"]:
+        missing = any(field in item for item in xml_missing_checks)
+        results["xml_checks"].append({
+            "item": field,
+            "exists": not missing,
+            "result": "PASS" if not missing else "FAIL",
+        })
+
+    return {
+        "device_uid": device_uid,
+        "cameras": cameras,
+        "imu": imu,
+        "log_data": log_data,
+        "consistency": consistency_list,
+        "xml_missing_checks": xml_missing_checks,
+        "results": results,
+        "overall": evaluate_overall_status(log_data, imu, xml_missing_checks),
+        "fail_codes": collect_failure_codes(log_data, imu, xml_missing_checks),
+    }
+
+
 def generate_report(device_uid, cameras, imu, log_data, xml_missing_checks=None):
     """生成结构化标定报告"""
     lines = []
@@ -775,6 +912,11 @@ def main():
         default=None,
         help="指定包含 device_calibration.xml 和 Calib.log 的目录。默认为脚本所在目录"
     )
+    parser.add_argument(
+        "--json-output",
+        action="store_true",
+        help="同时输出 JSON 格式报告到 calib_report.json"
+    )
     args = parser.parse_args()
 
     # 确定工作目录
@@ -841,6 +983,20 @@ def main():
     except Exception as exc:
         print(f"执行错误: {exc}")
         return EXIT_UNKNOWN_ERROR
+
+    # 生成 JSON 格式报告（如果指定了 --json-output）
+    if args.json_output:
+        try:
+            import json
+            json_data = generate_json_data(device_uid, cameras, imu, log_data, xml_missing_checks)
+            json_path = os.path.join(work_dir, "calib_report.json")
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(json_data, f, ensure_ascii=False, indent=2)
+            print(f"\nJSON 报告已保存至: {json_path}")
+            print(f"JSON_PATH={json_path}")
+        except Exception as exc:
+            print(f"JSON 报告生成失败: {exc}")
+            # JSON 生成失败不阻断流程
 
     # 成功执行后按总评返回：PASS=0，FAIL=细分业务码
     overall = evaluate_overall_status(log_data, imu, xml_missing_checks)
