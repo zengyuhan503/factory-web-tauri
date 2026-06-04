@@ -25,7 +25,7 @@ impl DeviceManager {
                 {
                     let mut slots_guard = slots.lock().await;
 
-                    // 检查已连接设备是否还在
+                    // 检查已连接设备是否还在，以及是否需要重试获取 CPU ID
                     for slot in slots_guard.iter_mut() {
                         if let Some(ref serial) = slot.serial {
                             let still_connected = devices.iter().any(|d| d.serial == *serial);
@@ -51,6 +51,29 @@ impl DeviceManager {
                                         "slot_id": slot.slot_id,
                                     }),
                                 );
+                            } else if slot.cpu_id.is_none() && slot.status != SlotStatus::Running {
+                                // 设备仍在连接但 CPU ID 未获取到，重试获取
+                                let adb = AdbExecutor::new(serial.clone());
+                                match adb.get_cpu_id().await {
+                                    Ok(id) => {
+                                        let id = id.trim().to_string();
+                                        if !id.is_empty() {
+                                            log::info!("槽位 {} 设备 {} 重试获取 CPU ID 成功: {}", slot.slot_id, serial, id);
+                                            slot.cpu_id = Some(id.clone());
+                                            let _ = app.emit_all(
+                                                "device:connected",
+                                                serde_json::json!({
+                                                    "slot_id": slot.slot_id,
+                                                    "serial": serial,
+                                                    "cpu_id": id,
+                                                }),
+                                            );
+                                        }
+                                    }
+                                    Err(_) => {
+                                        // 获取失败，下次轮询再试
+                                    }
+                                }
                             }
                         }
                     }
