@@ -24,6 +24,8 @@ r"""
    python run_sfr50_qc.py E:\BaiduNetdiskDownload\data\6cam --pattern-hint 9x9 --mean-avg50-min-pass 0.18 --cam-std-max-pass 0.05
 """
 
+from __future__ import annotations
+
 import argparse
 import csv
 import os
@@ -195,7 +197,7 @@ def resolve_csv_paths(inputs: List[str], metrics_csv: Optional[str], summary_csv
 
 
 def decide_exit_code(checkerboard_exit: int, device_result: dict, missing_count: int) -> int:
-    if checkerboard_exit == 0 and missing_count > 0:
+    if missing_count > 0:
         device_result["grade"] = "不合格"
         print("\n最终结果: 不正常")
         print(f"- 存在未检出棋盘格的图像数量: {missing_count}")
