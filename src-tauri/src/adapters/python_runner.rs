@@ -57,16 +57,6 @@ impl PythonRunner {
             let mut lines = reader.lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 logs.push(line.clone());
-                on_log(&line);
-            }
-        }
-
-        // 读取 stderr
-        if let Some(stderr) = child.stderr.take() {
-            let reader = BufReader::new(stderr);
-            let mut lines = reader.lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                logs.push(line.clone());
 
                 if line.contains("status:ok") {
                     result = line[line.find("status:ok").unwrap() + 10..].to_string();
@@ -76,6 +66,16 @@ impl PythonRunner {
                 } else {
                     on_log(&line);
                 }
+            }
+        }
+
+        // 读取 stderr
+        if let Some(stderr) = child.stderr.take() {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                logs.push(line.clone());
+                on_log(&line);
             }
         }
 
