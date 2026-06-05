@@ -627,7 +627,7 @@ impl CalibrationEngine {
         // 推送 calib 目录到设备（独立步骤）
         // 注意：calib 报告目录在 get_device_work_dir(cpu_id)/calib，不是在 dataset_path 父目录下
         let calib_dir_local = crate::utils::paths::get_device_work_dir(&self.cpu_id).join("calib");
-        let calib_dir_remote = "/sdcard/calib_dir";
+        let calib_dir_remote = "/sdcard/qc/calib";
         self.log_action("文件推送", &format!("推送 calib 目录到 {}", calib_dir_remote));
 
         if let Err(e) = self.adb.shell(&format!("mkdir -p {}", calib_dir_remote), 15000).await {
@@ -845,20 +845,26 @@ impl CalibrationEngine {
         // 推回设备
         self.log_action("ADB", "推送 SFR 报告到设备");
 
+        // 确保目标目录存在
+        let sfr_remote_dir = "/sdcard/qc/sharpness";
+        if let Err(e) = self.adb.shell(&format!("mkdir -p {}", sfr_remote_dir), 15000).await {
+            self.log_warn(&format!("创建 {} 目录失败: {}", sfr_remote_dir, e));
+        }
+
         // 推送 JSON
-        match self.adb.push(&json_path, "/sdcard/snapshot/", 30000).await {
+        match self.adb.push(&json_path, sfr_remote_dir, 30000).await {
             Ok(_) => self.log_info("SFR JSON 报告已推送"),
             Err(e) => self.log_warn(&format!("推送 JSON 失败: {}", e)),
         }
 
         // 推送 Text
-        match self.adb.push(&txt_path, "/sdcard/snapshot/", 30000).await {
+        match self.adb.push(&txt_path, sfr_remote_dir, 30000).await {
             Ok(_) => self.log_info("SFR Text 报告已推送"),
             Err(e) => self.log_warn(&format!("推送 Text 失败: {}", e)),
         }
 
         // 推送 PDF
-        match self.adb.push(&pdf_path, "/sdcard/snapshot/", 30000).await {
+        match self.adb.push(&pdf_path, sfr_remote_dir, 30000).await {
             Ok(_) => self.log_info("SFR PDF 报告已推送"),
             Err(e) => self.log_warn(&format!("推送 PDF 失败: {}", e)),
         }
@@ -868,7 +874,7 @@ impl CalibrationEngine {
             let img_path = image_dir.join(&cam.image);
             if img_path.exists() {
                 match self.adb.push(
-                    img_path.to_str().unwrap(), "/sdcard/snapshot/", 30000).await {
+                    img_path.to_str().unwrap(), sfr_remote_dir, 30000).await {
                     Ok(_) => {}
                     Err(e) => self.log_warn(&format!("推送图片 {} 失败: {}", cam.image, e)),
                 }
