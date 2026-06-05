@@ -637,7 +637,9 @@ impl CalibrationEngine {
         }
 
         if calib_dir_local.exists() {
-            match self.adb.push(&calib_dir_local.to_string_lossy(), calib_dir_remote, 60000).await {
+            // 使用 /./ 推送目录内容，避免在目标路径下多创建一层 calib 目录
+            let calib_source = format!("{}/.", calib_dir_local.to_string_lossy());
+            match self.adb.push(&calib_source, calib_dir_remote, 60000).await {
                 Ok(_) => {
                     self.log_info("calib 目录推送成功");
                 }
