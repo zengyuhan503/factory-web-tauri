@@ -590,35 +590,6 @@ impl CalibrationEngine {
         Ok(())
     }
 
-    async fn run_check_result(
-        &self,
-        dataset_path: &str,
-        app: &tauri::AppHandle,
-    ) -> Result<crate::adapters::python_runner::CheckResult, crate::error::CalibError> {
-        let runner = PythonRunner::new(self.serial.clone(), self.resource_dir.clone());
-        let slot_id = self.slot_id;
-        let app_clone = app.clone();
-        let logger_arc = self.logger.clone();
-
-        let result = runner
-            .run_check_result(dataset_path, move |log| {
-                let _ = app_clone.emit_all(
-                    "device:log",
-                    serde_json::json!({
-                        "slot_id": slot_id,
-                        "message": log,
-                        "level": "info",
-                    }),
-                );
-                if let Some(ref logger) = logger_arc {
-                    logger.python_log(log);
-                }
-            })
-            .await?;
-
-        Ok(result)
-    }
-
     async fn run_check_result_detail(
         &self,
         dataset_path: &str,
@@ -657,6 +628,34 @@ impl CalibrationEngine {
             .parent()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|| dataset_path.to_string());
+
+        // 推送 calib 目录到设备（独立步骤）
+        let calib_dir_local = format!("{}/calib", dir);
+        let calib_dir_remote = "/sdcard/calib_dir";
+        self.log_action("文件推送", &format!("推送 calib 目录到 {}", calib_dir_remote));
+
+        if let Err(e) = self.adb.shell(&format!("mkdir -p {}", calib_dir_remote), 15000).await {
+            let err = crate::error::CalibError::PushFailed(format!("创建设备目录失败: {}", e));
+            self.log_calib_error(&err);
+            return Err(err);
+        }
+
+        if Path::new(&calib_dir_local).exists() {
+            match self.adb.push(&calib_dir_local, calib_dir_remote, 60000).await {
+                Ok(_) => {
+                    self.log_info("calib 目录推送成功");
+                }
+                Err(e) => {
+                    let err = crate::error::CalibError::PushFailed(
+                        format!("push高通标定文件失败，请检查或者重测: {}", e)
+                    );
+                    self.log_calib_error(&err);
+                    return Err(err);
+                }
+            }
+        } else {
+            self.log_warn(&format!("本地 calib 目录不存在: {}", calib_dir_local));
+        }
 
         // 推送 device_calibration.xml
         let xml_path = format!("{}/device_calibration.xml", dir);
@@ -720,9 +719,26 @@ impl CalibrationEngine {
             }
         }
 
+        // 压缩标定结果目录
+        let src_dir = Path::new(&dir);
+        let zip_path_buf = src_dir.join("calibDetails.zip");
+        let exclude = if self.config.enable_sfr {
+            &[][..]
+        } else {
+            &["sfr"][..]
+        };
+        self.log_action("压缩", &format!("压缩 {} 到 calibDetails.zip (enable_sfr={})", dir, self.config.enable_sfr));
+        match self.zip_directory(src_dir, &zip_path_buf, exclude) {
+            Ok(_) => self.log_info(&format!("压缩完成: {:?}", zip_path_buf)),
+            Err(e) => {
+                self.log_warn(&format!("压缩失败: {}", e));
+                return Err(crate::error::CalibError::Unknown(format!("压缩标定目录失败: {}", e)));
+            }
+        }
+
         // 上传 OSS
         let time = chrono::Local::now().format("%Y-%m-%d-%H-%M-%S").to_string();
-        let zip_path = format!("{}/calibDetails.zip", dir);
+        let zip_path = zip_path_buf.to_string_lossy().to_string();
         let file_name = format!("{}-{}.zip", serial, time);
 
         self.log_action("OSS上传", &format!("准备上传 {} 到 OSS", zip_path));
@@ -836,6 +852,58 @@ impl CalibrationEngine {
         Ok(())
     }
 
+    /// 将目录压缩为 zip 文件，可排除指定子目录
+    fn zip_directory(
+        &self,
+        src_dir: &Path,
+        zip_path: &Path,
+        exclude_dirs: &[&str],
+    ) -> Result<(), String> {
+        let file = std::fs::File::create(zip_path)
+            .map_err(|e| format!("创建 zip 文件失败: {}", e))?;
+        let mut zip = zip::ZipWriter::new(file);
+        let options = zip::write::FileOptions::<()>::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        self.zip_add_entries(&mut zip, src_dir, src_dir, options, exclude_dirs)?;
+
+        zip.finish().map_err(|e| format!("完成 zip 写入失败: {}", e))?;
+        Ok(())
+    }
+
+    fn zip_add_entries(
+        &self,
+        zip: &mut zip::ZipWriter<std::fs::File>,
+        base: &Path,
+        current: &Path,
+        options: zip::write::FileOptions<()>,
+        exclude_dirs: &[&str],
+    ) -> Result<(), String> {
+        for entry in std::fs::read_dir(current).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let path = entry.path();
+            let name = path.strip_prefix(base).map_err(|e| e.to_string())?;
+            let name_str = name.to_string_lossy().to_string();
+
+            // 检查是否需要排除
+            if exclude_dirs.iter().any(|ex| name_str.starts_with(ex)) {
+                continue;
+            }
+
+            if path.is_file() {
+                zip.start_file(name_str, options).map_err(|e| e.to_string())?;
+                let mut f = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+                std::io::copy(&mut f, zip).map_err(|e| e.to_string())?;
+            } else if path.is_dir() {
+                if name != Path::new("") {
+                    zip.add_directory(name_str.clone(), options).map_err(|e| e.to_string())?;
+                }
+                self.zip_add_entries(zip, base, &path, options, exclude_dirs)?;
+            }
+        }
+        Ok(())
+    }
+
     /// 复制标定相关原始文件到报告目录（PDF 生成成功后调用）
     fn copy_calib_source_files(&self, dataset_path: &str, report_dir: &Path) {
         // 源文件可能在 dataset_path 或其父目录中
@@ -851,6 +919,7 @@ impl CalibrationEngine {
             ("Calib.log", true),
             ("device_calibration.xml", true),
             ("parsed_report.txt", false), // 可选
+            ("calibDetails.zip", false),  // 可选
         ];
 
         for (filename, required) in &files_to_copy {

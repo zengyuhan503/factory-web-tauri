@@ -3,107 +3,159 @@
 """
 Calibration Report PDF Generator
 Generate images using Pillow and save as PDF
-Support color marking, table layout (no images)
 """
 
 import json
 import sys
 import os
+import re
 
 try:
     from PIL import Image, ImageDraw, ImageFont
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
-    print("错误: Pillow 库未安装。请运行: pip install Pillow", file=sys.stderr)
+    print("Error: Pillow not installed. Run: pip install Pillow", file=sys.stderr)
     sys.exit(1)
 
 
-def _verify_font_letters(font):
-    """验证字体能否正确显示基本英文字母，避免加载到 CJK 字体导致 ASCII 字符映射错误"""
-    try:
-        temp_img = Image.new('RGB', (200, 50), 'white')
-        temp_draw = ImageDraw.Draw(temp_img)
-        # 测试字符串包含大写、小写、数字、冒号、空格
-        test_text = "DOF: 87.9%"
-        bbox = temp_draw.textbbox((0, 0), test_text, font=font)
-        # 如果能获取 bbox 且宽度合理，说明字体可用
-        w = bbox[2] - bbox[0]
-        return w > 30  # 至少要有一定宽度
-    except Exception:
+def _has_cjk(text):
+    """Check if text contains CJK characters"""
+    if not text:
         return False
+    return bool(re.search(r'[一-鿿　-〿＀-￯]', str(text)))
+
+
+def _translate_to_english(text):
+    """Translate common Chinese failure/warning messages to English"""
+    if not text or not _has_cjk(text):
+        return text
+
+    # Common Chinese -> English mappings for calibration reports
+    mappings = {
+        "摄像头标定精度不足，建议重新拍摄（确保标定板清晰、光线充足）": "Camera calibration accuracy insufficient. Re-shoot recommended (ensure clear calibration board and adequate lighting).",
+        "摄像头相对位置标定不合格，请检查摄像头安装是否松动": "Camera relative position calibration failed. Check if camera mounting is loose.",
+        "整体标定精度不合格，建议重新拍摄或检查设备硬件": "Overall calibration accuracy failed. Re-shoot or check device hardware.",
+        "IMU传感器加速度偏差过大，设备可能需要返修": "IMU accelerometer bias too large. Device may need repair.",
+        "IMU传感器陀螺仪偏差过大，设备可能需要返修": "IMU gyroscope bias too large. Device may need repair.",
+        "标定结果文件缺少IMU噪声参数，请重新执行标定": "Calibration result missing IMU noise parameters. Please re-run calibration.",
+        "标定结果文件IMU参数不完整，请重新执行标定": "Calibration result IMU parameters incomplete. Please re-run calibration.",
+        "标定板检测率过低，请重新拍摄（确保标定板完整出现在画面中）": "Calibration board detection rate too low. Re-shoot recommended (ensure board fully visible).",
+        "标定结果存在多项不合格": "Multiple calibration items failed.",
+        "覆盖率": "coverage",
+        "检测率": "detection rate",
+        "阈值": "threshold",
+        "不足": "insufficient",
+        "失败": "failed",
+        "错误": "error",
+        "警告": "warning",
+        "缺少": "missing",
+        "相机": "camera",
+        "摄像头": "camera",
+        "建议": "suggest",
+        "重新": "re-",
+        "拍摄": "shoot",
+        "检查": "check",
+        "确保": "ensure",
+        "清晰": "clear",
+        "光线": "lighting",
+        "充足": "adequate",
+        "松动": "loose",
+        "设备": "device",
+        "硬件": "hardware",
+        "需要": "need",
+        "返修": "repair",
+        "执行": "execute",
+        "标定": "calibration",
+        "结果": "result",
+        "文件": "file",
+        "参数": "parameters",
+        "完整": "complete",
+        "出现在": "appear in",
+        "画面中": "frame",
+        "多项": "multiple",
+        "不合格": "failed",
+        "精度": "accuracy",
+        "偏差": "bias",
+        "过大": "too large",
+        "传感器": "sensor",
+        "陀螺仪": "gyroscope",
+        "加速度": "accelerometer",
+        "噪声": "noise",
+        "过低": "too low",
+        "标定板": "calibration board",
+        "检测": "detection",
+        "画面": "frame",
+    }
+
+    result = str(text)
+    # Try full phrase match first
+    for cn, en in mappings.items():
+        if len(cn) > 4:  # Only replace longer phrases first
+            result = result.replace(cn, en)
+    # Then word-by-word
+    for cn, en in mappings.items():
+        if len(cn) <= 4:
+            result = result.replace(cn, en)
+
+    # If still has CJK, replace remaining CJK chars with "?"
+    if _has_cjk(result):
+        result = re.sub(r'[一-鿿　-〿＀-￯]', '?', result)
+
+    return result
 
 
 def load_font(size):
-    """加载字体，优先使用能正确显示英文的字体，避免 ttc 索引导致的字符映射错误"""
-    # 优先候选：独立的 .ttf 文件，避免 .ttc 的 index 歧义问题
+    """Load font - English only, no CJK support needed"""
     candidates = [
-        # Windows - 优先使用支持中英文的字体
-        ("C:/Windows/Fonts/msyh.ttc", 0),       # 微软雅黑
-        ("C:/Windows/Fonts/msyhbd.ttc", 0),     # 微软雅黑粗体
-        ("C:/Windows/Fonts/simhei.ttf", 0),     # 黑体
-        ("C:/Windows/Fonts/simsun.ttc", 0),     # 宋体
+        # Windows
         ("C:/Windows/Fonts/arial.ttf", 0),
         ("C:/Windows/Fonts/segoeui.ttf", 0),
         ("C:/Windows/Fonts/calibri.ttf", 0),
         ("C:/Windows/Fonts/tahoma.ttf", 0),
-        # Linux - DejaVu (most common, reliable)
+        # Linux - DejaVu (most common)
         ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0),
         ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 0),
         ("/usr/share/fonts/dejavu/DejaVuSans.ttf", 0),
         # Linux - Liberation
         ("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 0),
         ("/usr/share/fonts/liberation-sans/LiberationSans-Regular.ttf", 0),
-        # Linux - Noto Sans
-        ("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", 0),
-        ("/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf", 0),
-        # Linux - Noto CJK (支持中文)
-        ("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc", 0),
-        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 0),
         # macOS
         ("/Library/Fonts/Arial.ttf", 0),
         ("/System/Library/Fonts/Helvetica.ttc", 0),
-        ("/System/Library/Fonts/Arial.ttf", 0),
     ]
     for path, index in candidates:
         if os.path.exists(path):
             try:
-                font = ImageFont.truetype(path, size, index=index)
-                if _verify_font_letters(font):
-                    return font
+                return ImageFont.truetype(path, size, index=index)
             except Exception:
                 continue
 
-    # Fallback: scan system font directories, skip .ttc files to avoid index issues
+    # Fallback: scan system font directories
     scan_dirs = [
         "/usr/share/fonts",
         "/usr/local/share/fonts",
         os.path.expanduser("~/.fonts"),
-        os.path.expanduser("~/.local/share/fonts"),
     ]
     for scan_dir in scan_dirs:
         if not os.path.isdir(scan_dir):
             continue
         for root, _, files in os.walk(scan_dir):
             for fname in files:
-                # 优先扫描 .ttf，跳过可能有 index 问题的 .ttc
-                if fname.lower().endswith(('.ttf', '.otf')):
+                if fname.lower().endswith(('.ttf', '.ttc', '.otf')):
                     fpath = os.path.join(root, fname)
                     try:
-                        font = ImageFont.truetype(fpath, size)
-                        if _verify_font_letters(font):
-                            return font
+                        return ImageFont.truetype(fpath, size)
                     except Exception:
                         continue
 
-    print("错误: 找不到合适的字体。请安装 TrueType 字体，例如:", file=sys.stderr)
+    print("Error: No suitable font found. Install TrueType fonts, e.g.:", file=sys.stderr)
     print("  Ubuntu/Debian: sudo apt-get install fonts-dejavu-core", file=sys.stderr)
-    print("  CentOS/RHEL: sudo yum install dejavu-sans-fonts", file=sys.stderr)
     sys.exit(1)
 
 
 def text_size(draw, text, font):
-    """计算文本尺寸"""
+    """Calculate text size"""
     bbox = draw.textbbox((0, 0), text, font=font)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
@@ -115,10 +167,10 @@ def parse_color(color_str):
 
 
 class ReportBuilder:
-    """报告构建器"""
+    """Report builder"""
 
     def __init__(self):
-        # A4 尺寸 @ 180 DPI
+        # A4 @ 180 DPI
         self.DPI = 180
         self.MM_TO_PX = self.DPI / 25.4
         self.PAGE_W = int(210 * self.MM_TO_PX)
@@ -126,14 +178,14 @@ class ReportBuilder:
         self.MARGIN = int(18 * self.MM_TO_PX)
         self.CONTENT_W = self.PAGE_W - 2 * self.MARGIN
 
-        # 字体
+        # Fonts
         self.font_title = load_font(36)
         self.font_header = load_font(24)
         self.font_body = load_font(18)
         self.font_small = load_font(15)
         self.font_tiny = load_font(13)
 
-        # 颜色
+        # Colors
         self.C_GREEN = "#008800"
         self.C_RED = "#cc0000"
         self.C_ORANGE = "#cc8800"
@@ -141,30 +193,29 @@ class ReportBuilder:
         self.C_GRAY = "#666666"
         self.C_LIGHT_GRAY = "#f0f0f0"
 
-        # 收集所有页面
+        # Pages
         self.pages = []
         self.current_page_elements = []
         self.y = self.MARGIN
 
     def new_page(self):
-        """开始新页面"""
+        """Start new page"""
         if self.current_page_elements:
             self.pages.append(self.current_page_elements)
         self.current_page_elements = []
         self.y = self.MARGIN
 
     def check_page_break(self, needed_height):
-        """检查是否需要分页"""
+        """Check if page break needed"""
         if self.y + needed_height > self.PAGE_H - self.MARGIN:
             self.new_page()
             return True
         return False
 
     def add_text(self, text, font, color="#333333", x=None, gap=12):
-        """添加文本，默认 gap 从 8 增大到 12"""
+        """Add text"""
         if x is None:
             x = self.MARGIN
-        # 临时计算高度
         temp_img = Image.new('RGB', (self.PAGE_W, 1), 'white')
         temp_draw = ImageDraw.Draw(temp_img)
         h = text_size(temp_draw, text, font)[1]
@@ -174,26 +225,26 @@ class ReportBuilder:
         self.y += h + gap
 
     def add_line(self, color="#cccccc"):
-        """添加水平分隔线，增大上下空间"""
+        """Add horizontal line"""
         self.check_page_break(8)
         self.current_page_elements.append(("hline", self.MARGIN, self.y, self.PAGE_W - self.MARGIN, self.y, color))
         self.y += 8
 
     def add_section_title(self, title, font=None):
-        """添加章节标题，增大上下间距"""
+        """Add section title - no underline"""
         if font is None:
             font = self.font_header
         temp_img = Image.new('RGB', (self.PAGE_W, 1), 'white')
         temp_draw = ImageDraw.Draw(temp_img)
         h = text_size(temp_draw, title, font)[1]
 
-        # 标题前空 18px，标题后空 14px + 下划线 2px
-        self.check_page_break(h + 18 + 14)
-        self.current_page_elements.append(("section", self.MARGIN, self.y + 18, title, font, self.C_BLUE))
-        self.y += h + 18 + 14
+        # Space before and after title, no underline
+        self.check_page_break(h + 22)
+        self.current_page_elements.append(("section", self.MARGIN, self.y + 10, title, font, self.C_BLUE))
+        self.y += h + 22
 
     def add_table_row(self, columns, widths, font=None, colors=None, bg_color=None):
-        """添加表格行，增大行高和行间距避免线条覆盖文字"""
+        """Add table row"""
         if font is None:
             font = self.font_small
         if colors is None:
@@ -202,10 +253,8 @@ class ReportBuilder:
         temp_img = Image.new('RGB', (self.PAGE_W, 1), 'white')
         temp_draw = ImageDraw.Draw(temp_img)
         max_h = max(text_size(temp_draw, str(c), font)[1] for c in columns)
-        # 行高从 max_h + 6 增大到 max_h + 16（上下各 8px 内边距）
         row_h = max_h + 16
 
-        # 行间距从 2 增大到 4
         self.check_page_break(row_h + 4)
 
         x = self.MARGIN
@@ -213,21 +262,21 @@ class ReportBuilder:
         self.y += row_h + 4
 
     def add_table_header(self, columns, widths, font=None):
-        """添加表格表头"""
+        """Add table header"""
         self.add_table_row(columns, widths, font, ["#333333"] * len(columns), "#e8e8e8")
 
     def add_spacer(self, height=14):
-        """添加空白间距，默认从 10 增大到 14"""
+        """Add vertical spacer"""
         self.check_page_break(height)
         self.y += height
 
     def finalize(self):
-        """结束最后一页"""
+        """Finalize last page"""
         if self.current_page_elements:
             self.pages.append(self.current_page_elements)
 
     def render(self, output_path):
-        """渲染所有页面为 PDF"""
+        """Render all pages to PDF"""
         self.finalize()
 
         rendered_pages = []
@@ -246,9 +295,7 @@ class ReportBuilder:
                 elif etype == "section":
                     _, x, y, title, font, color = elem
                     draw.text((x, y), title, font=font, fill=parse_color(color))
-                    h = text_size(draw, title, font)[1]
-                    draw.line([(x, y + h + 2), (self.PAGE_W - self.MARGIN, y + h + 2)],
-                              fill=parse_color(color), width=2)
+                    # No underline
                 elif etype == "row":
                     _, x, y, columns, widths, font, colors, bg_color, row_h = elem
                     if bg_color:
@@ -257,7 +304,6 @@ class ReportBuilder:
                     cx = x
                     for i, (col, width) in enumerate(zip(columns, widths)):
                         color = colors[i] if i < len(colors) else "#333333"
-                        # 垂直居中
                         col_h = text_size(draw, str(col), font)[1]
                         vy = y + (row_h - col_h) // 2
                         draw.text((cx, vy), str(col), font=font, fill=parse_color(color))
@@ -268,7 +314,6 @@ class ReportBuilder:
         if not rendered_pages:
             return
 
-        # 保存为 PDF（多页）
         first = rendered_pages[0].convert('RGB')
         rest = [p.convert('RGB') for p in rendered_pages[1:]]
         first.save(output_path, "PDF", resolution=self.DPI, save_all=True, append_images=rest)
@@ -276,7 +321,6 @@ class ReportBuilder:
 
 
 def result_color(result):
-    """根据结果返回颜色"""
     if result == "PASS":
         return "#008800"
     elif result == "FAIL":
@@ -285,7 +329,6 @@ def result_color(result):
 
 
 def rating_color(rate_pct, thresholds):
-    """根据检测率返回颜色"""
     if rate_pct >= thresholds["excellent"]:
         return "#008800"
     elif rate_pct >= thresholds["good"]:
@@ -296,7 +339,7 @@ def rating_color(rate_pct, thresholds):
 
 
 def build_report(report_data, builder):
-    """根据 JSON 数据构建报告元素"""
+    """Build report elements from JSON data"""
     calib = report_data.get("calib", {})
     result = report_data.get("result", {})
 
@@ -471,7 +514,7 @@ def build_report(report_data, builder):
 
     ext_geom = log_data.get("extrinsic", {}).get("baselines", {})
     if ext_geom:
-        bl_headers = ["Camera", "Baseline(mm)", "Principal Axis Angle", "Angular Resolution(px/°)"]
+        bl_headers = ["Camera", "Baseline(mm)", "Principal Axis Angle", "Angular Resolution(px/deg)"]
         bl_widths = [160, 120, 120, 140]
         builder.add_table_header(bl_headers, bl_widths, builder.font_small)
 
@@ -481,7 +524,7 @@ def build_report(report_data, builder):
                 baseline = b.get("baseline_m", 0) * 1000
                 angle = b.get("angle_deg", 0)
                 ppd = b.get("pixels_per_deg", 0)
-                row = [name, f"{baseline:.1f}", f"{angle:.1f}°", f"{ppd:.2f}"]
+                row = [name, f"{baseline:.1f}", f"{angle:.1f}deg", f"{ppd:.2f}"]
                 builder.add_table_row(row, bl_widths, builder.font_tiny)
 
     # ========== 7. Camera Consistency ==========
@@ -493,7 +536,6 @@ def build_report(report_data, builder):
 
     for item in calib.get("results", {}).get("consistency", []):
         label = item.get("label", "N/A")
-        # 简化标签
         if "trackingA" in label and "trackingB" in label:
             label = "Tracking Pair"
         elif "ctrl-trackingA" in label and "ctrl-trackingB" in label:
@@ -534,7 +576,6 @@ def build_report(report_data, builder):
     else:
         builder.add_text("  No IMU Data", builder.font_body)
 
-    # IMU bias 判定表格
     builder.add_spacer(8)
     imu_headers = ["Item", "Value", "Threshold", "Result"]
     imu_widths = [180, 120, 120, 100]
@@ -559,7 +600,9 @@ def build_report(report_data, builder):
     has_warn = False
     warnings = log_data.get("warnings", [])
     for warn in warnings[:10]:
-        builder.add_text(f"  WARNING: {warn}", builder.font_body, builder.C_ORANGE)
+        # Translate Chinese to English for PDF
+        en_warn = _translate_to_english(str(warn))
+        builder.add_text(f"  WARNING: {en_warn}", builder.font_body, builder.C_ORANGE)
         has_warn = True
     if len(warnings) > 10:
         builder.add_text(f"  ... Total {len(warnings)} warnings", builder.font_body, builder.C_GRAY)
@@ -567,12 +610,14 @@ def build_report(report_data, builder):
 
     special = log_data.get("special_checks", [])
     for check in special:
-        builder.add_text(f"  CHECK: {check}", builder.font_body, builder.C_ORANGE)
+        en_check = _translate_to_english(str(check))
+        builder.add_text(f"  CHECK: {en_check}", builder.font_body, builder.C_ORANGE)
         has_warn = True
 
     xml_missing = calib.get("xml_missing_checks", [])
     for item in xml_missing:
-        builder.add_text(f"  WARNING: {item}", builder.font_body, builder.C_RED)
+        en_item = _translate_to_english(str(item))
+        builder.add_text(f"  WARNING: {en_item}", builder.font_body, builder.C_RED)
         has_warn = True
 
     if not has_warn:
@@ -586,22 +631,20 @@ def build_report(report_data, builder):
         builder.add_text("  (None)", builder.font_body, builder.C_GREEN)
     else:
         for i, f in enumerate(failures, 1):
-            builder.add_text(f"  {i}. {f}", builder.font_body, builder.C_RED)
+            en_f = _translate_to_english(str(f))
+            builder.add_text(f"  {i}. {en_f}", builder.font_body, builder.C_RED)
 
     # ========== 11. Summary ==========
     builder.add_section_title("11. Summary")
 
-    # Overall（大号醒目显示）
     overall_color = builder.C_GREEN if is_pass else builder.C_RED
     builder.add_text(f"  Overall: {overall}", builder.font_header, overall_color)
 
-    # 联合标定残差
     ext_full = log_data.get("extrinsic", {}).get("CalibrateIMU-robust-Trajectory-Extrinsics-Intrinsics-Full", {})
     if ext_full:
         joint_rms = ext_full.get("rms", 0)
         builder.add_text(f"  Joint Calibration Residual: {joint_rms:.4f} px", builder.font_body)
 
-    # 最弱摄像头
     intrinsic_results = calib.get("results", {}).get("intrinsic", [])
     if intrinsic_results:
         worst = max(intrinsic_results, key=lambda x: x.get("rms", 0))
@@ -610,7 +653,6 @@ def build_report(report_data, builder):
             builder.font_body
         )
 
-    # 检测率最低摄像头
     det_data = log_data.get("detection", {})
     if det_data:
         worst_cam = "N/A"
@@ -625,7 +667,7 @@ def build_report(report_data, builder):
             if rate < worst_rate:
                 worst_rate = rate
                 worst_cam = cam_name
-        builder.add_text(f"  DetectionLowest RateCamera: {worst_cam} ({worst_rate:.1f}%)", builder.font_body)
+        builder.add_text(f"  Lowest Detection Rate Camera: {worst_cam} ({worst_rate:.1f}%)", builder.font_body)
 
     builder.add_spacer(12)
     builder.add_line()
