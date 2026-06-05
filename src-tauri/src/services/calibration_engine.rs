@@ -622,7 +622,7 @@ impl CalibrationEngine {
     async fn push_and_upload(
         &self,
         _dataset_path: &str,
-        serial: &str,
+        _serial: &str,
     ) -> Result<String, crate::error::CalibError> {
         // 推送 calib 目录到设备（独立步骤）
         // 注意：calib 报告目录在 get_device_work_dir(cpu_id)/calib，不是在 dataset_path 父目录下
@@ -796,7 +796,7 @@ impl CalibrationEngine {
         self.log_action("API上报", &format!("上报标定结果, brand={}", brand));
         match self
             .oss
-            .report_to_api(&oss_url, serial, &time, brand)
+            .report_to_api(&oss_url, &self.cpu_id, &time, brand)
             .await
         {
             Ok(_) => {
