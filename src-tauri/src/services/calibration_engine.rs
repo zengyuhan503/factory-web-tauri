@@ -630,7 +630,8 @@ impl CalibrationEngine {
             .unwrap_or_else(|| dataset_path.to_string());
 
         // 推送 calib 目录到设备（独立步骤）
-        let calib_dir_local = format!("{}/calib", dir);
+        // 注意：calib 报告目录在 get_device_work_dir(cpu_id)/calib，不是在 dataset_path 父目录下
+        let calib_dir_local = crate::utils::paths::get_device_work_dir(&self.cpu_id).join("calib");
         let calib_dir_remote = "/sdcard/calib_dir";
         self.log_action("文件推送", &format!("推送 calib 目录到 {}", calib_dir_remote));
 
@@ -640,8 +641,8 @@ impl CalibrationEngine {
             return Err(err);
         }
 
-        if Path::new(&calib_dir_local).exists() {
-            match self.adb.push(&calib_dir_local, calib_dir_remote, 60000).await {
+        if calib_dir_local.exists() {
+            match self.adb.push(&calib_dir_local.to_string_lossy(), calib_dir_remote, 60000).await {
                 Ok(_) => {
                     self.log_info("calib 目录推送成功");
                 }
@@ -654,7 +655,7 @@ impl CalibrationEngine {
                 }
             }
         } else {
-            self.log_warn(&format!("本地 calib 目录不存在: {}", calib_dir_local));
+            self.log_warn(&format!("本地 calib 目录不存在: {}", calib_dir_local.display()));
         }
 
         // 推送 device_calibration.xml
@@ -852,7 +853,7 @@ impl CalibrationEngine {
         Ok(())
     }
 
-    /// 将目录压缩为 zip 文件，可排除指定子目录
+    /// 将目录压缩为 zip 文件，可排除指定子目录和 zip 文件本身
     fn zip_directory(
         &self,
         src_dir: &Path,
@@ -865,7 +866,10 @@ impl CalibrationEngine {
         let options = zip::write::FileOptions::<()>::default()
             .compression_method(zip::CompressionMethod::Deflated);
 
-        self.zip_add_entries(&mut zip, src_dir, src_dir, options, exclude_dirs)?;
+        let exclude_zip = zip_path.file_name()
+            .map(|n| n.to_string_lossy().to_string());
+
+        self.zip_add_entries(&mut zip, src_dir, src_dir, options, exclude_dirs, exclude_zip.as_deref())?;
 
         zip.finish().map_err(|e| format!("完成 zip 写入失败: {}", e))?;
         Ok(())
@@ -878,6 +882,7 @@ impl CalibrationEngine {
         current: &Path,
         options: zip::write::FileOptions<()>,
         exclude_dirs: &[&str],
+        exclude_file: Option<&str>,
     ) -> Result<(), String> {
         for entry in std::fs::read_dir(current).map_err(|e| e.to_string())? {
             let entry = entry.map_err(|e| e.to_string())?;
@@ -885,9 +890,16 @@ impl CalibrationEngine {
             let name = path.strip_prefix(base).map_err(|e| e.to_string())?;
             let name_str = name.to_string_lossy().to_string();
 
-            // 检查是否需要排除
+            // 检查是否需要排除指定目录
             if exclude_dirs.iter().any(|ex| name_str.starts_with(ex)) {
                 continue;
+            }
+
+            // 排除 zip 输出文件本身，避免 zip 包含自身导致文件膨胀或阻塞
+            if let Some(exclude) = exclude_file {
+                if name_str == exclude {
+                    continue;
+                }
             }
 
             if path.is_file() {
@@ -898,7 +910,7 @@ impl CalibrationEngine {
                 if name != Path::new("") {
                     zip.add_directory(name_str.clone(), options).map_err(|e| e.to_string())?;
                 }
-                self.zip_add_entries(zip, base, &path, options, exclude_dirs)?;
+                self.zip_add_entries(zip, base, &path, options, exclude_dirs, exclude_file)?;
             }
         }
         Ok(())
