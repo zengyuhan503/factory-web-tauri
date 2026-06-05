@@ -765,7 +765,7 @@ impl CalibrationEngine {
         // 上传 OSS
         let time = chrono::Local::now().format("%Y-%m-%d-%H-%M-%S").to_string();
         let zip_path = zip_path_buf.to_string_lossy().to_string();
-        let file_name = format!("{}-{}.zip", serial, time);
+        let file_name = format!("{}-{}.zip", self.cpu_id, time);
 
         self.log_action("OSS上传", &format!("准备上传 {} 到 OSS", zip_path));
 
