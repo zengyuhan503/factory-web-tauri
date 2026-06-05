@@ -869,7 +869,7 @@ impl CalibrationEngine {
             Err(e) => self.log_warn(&format!("推送 PDF 失败: {}", e)),
         }
 
-        // 推送图片
+        // 推送图片（分析报告生成的标注图）
         for cam in &report.sfr.cameras {
             let img_path = image_dir.join(&cam.image);
             if img_path.exists() {
@@ -880,6 +880,30 @@ impl CalibrationEngine {
                 }
             }
         }
+
+        // 推送原始清晰度测试图片
+        self.log_action("ADB", "推送 SFR 原始图片到设备");
+        let image_extensions = [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"];
+        let mut pushed_count = 0;
+        if let Ok(entries) = std::fs::read_dir(image_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    let ext = path.extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or("")
+                        .to_lowercase();
+                    if image_extensions.iter().any(|&e| e.trim_start_matches('.') == ext) {
+                        match self.adb.push(
+                            path.to_str().unwrap_or(""), sfr_remote_dir, 30000).await {
+                            Ok(_) => pushed_count += 1,
+                            Err(e) => self.log_warn(&format!("推送原始图片 {:?} 失败: {}", path.file_name().unwrap_or_default(), e)),
+                        }
+                    }
+                }
+            }
+        }
+        self.log_info(&format!("SFR 原始图片推送完成: {} 张", pushed_count));
 
         Ok(())
     }
