@@ -621,14 +621,9 @@ impl CalibrationEngine {
 
     async fn push_and_upload(
         &self,
-        dataset_path: &str,
+        _dataset_path: &str,
         serial: &str,
     ) -> Result<String, crate::error::CalibError> {
-        let dir = Path::new(dataset_path)
-            .parent()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|| dataset_path.to_string());
-
         // 推送 calib 目录到设备（独立步骤）
         // 注意：calib 报告目录在 get_device_work_dir(cpu_id)/calib，不是在 dataset_path 父目录下
         let calib_dir_local = crate::utils::paths::get_device_work_dir(&self.cpu_id).join("calib");
@@ -658,13 +653,13 @@ impl CalibrationEngine {
             self.log_warn(&format!("本地 calib 目录不存在: {}", calib_dir_local.display()));
         }
 
-        // 推送 device_calibration.xml
-        let xml_path = format!("{}/device_calibration.xml", dir);
-        self.log_action("文件推送", &format!("推送 {} 到 /data/local/tmp", xml_path));
-        if Path::new(&xml_path).exists() {
-            match self.adb.push(&xml_path, "/data/local/tmp", 30000).await {
+        // 推送 device_calibration.xml（从 calib/ 报告目录读取，不从 resources/qvrdataset 读取）
+        let xml_path = calib_dir_local.join("device_calibration.xml");
+        self.log_action("文件推送", &format!("推送 {} 到 /data/local/tmp", xml_path.display()));
+        if xml_path.exists() {
+            match self.adb.push(&xml_path.to_string_lossy(), "/data/local/tmp", 30000).await {
                 Ok(_) => {
-                    self.log_info(&format!("标定文件推送成功: {}", xml_path));
+                    self.log_info(&format!("标定文件推送成功: {}", xml_path.display()));
                 }
                 Err(e) => {
                     let err = crate::error::CalibError::PushFailed(e.to_string());
@@ -673,8 +668,8 @@ impl CalibrationEngine {
                 }
             }
         } else {
-            self.log_warn(&format!("标定文件不存在: {}", xml_path));
-            return Err(crate::error::CalibError::CalibrationFileMissing(xml_path));
+            self.log_warn(&format!("标定文件不存在: {}", xml_path.display()));
+            return Err(crate::error::CalibError::CalibrationFileMissing(xml_path.to_string_lossy().to_string()));
         }
 
         // 等待文件完全写入设备存储
@@ -721,16 +716,46 @@ impl CalibrationEngine {
         }
 
         // 压缩标定结果目录
-        let src_dir = Path::new(&dir);
-        let zip_path_buf = src_dir.join("calibDetails.zip");
-        let exclude = if self.config.enable_sfr {
-            &[][..]
+        // 压缩的是 CalibratResult/{cpu_id}/ 整个目录（包含 calib/ 报告和 qvrdataset/ 数据）
+        let work_dir = crate::utils::paths::get_device_work_dir(&self.cpu_id);
+        let zip_path_buf = work_dir.join("calibDetails.zip");
+        let exclude_vec: Vec<String> = if self.config.enable_sfr {
+            vec![]
         } else {
-            &["sfr"][..]
+            vec!["sfr".to_string()]
         };
-        self.log_action("压缩", &format!("压缩 {} 到 calibDetails.zip (enable_sfr={})", dir, self.config.enable_sfr));
-        match self.zip_directory(src_dir, &zip_path_buf, exclude) {
-            Ok(_) => self.log_info(&format!("压缩完成: {:?}", zip_path_buf)),
+
+        // 统计待压缩文件数量和大小，帮助排查卡顿问题
+        let (file_count, total_size) = count_files_recursive(&work_dir, &exclude_vec)
+            .unwrap_or((0, 0));
+        self.log_info(&format!(
+            "待压缩: {} 个文件/目录, 总大小约 {:.1} MB",
+            file_count, total_size as f64 / (1024.0 * 1024.0)
+        ));
+
+        self.log_action("压缩", &format!("开始压缩 {:?} 到 calibDetails.zip (enable_sfr={})", work_dir, self.config.enable_sfr));
+
+        // 使用 spawn_blocking 避免阻塞 tokio async worker 线程
+        let work_dir_clone = work_dir.clone();
+        let zip_path_clone = zip_path_buf.clone();
+        let compress_result = tokio::task::spawn_blocking(move || {
+            let exclude_refs: Vec<&str> = exclude_vec.iter().map(|s| s.as_str()).collect();
+            let mut logs = Vec::new();
+            let result = zip_directory_blocking(
+                &work_dir_clone, &zip_path_clone, &exclude_refs,
+                |log| logs.push(log.to_string()),
+            );
+            (result, logs)
+        }).await.map_err(|e| crate::error::CalibError::Unknown(format!("压缩任务中断: {}", e)))?;
+
+        for log in compress_result.1 {
+            self.log_info(&log);
+        }
+
+        match compress_result.0 {
+            Ok(file_count) => {
+                self.log_info(&format!("压缩完成: {:?} (共 {} 个文件)", zip_path_buf, file_count));
+            }
             Err(e) => {
                 self.log_warn(&format!("压缩失败: {}", e));
                 return Err(crate::error::CalibError::Unknown(format!("压缩标定目录失败: {}", e)));
@@ -850,69 +875,6 @@ impl CalibrationEngine {
             }
         }
 
-        Ok(())
-    }
-
-    /// 将目录压缩为 zip 文件，可排除指定子目录和 zip 文件本身
-    fn zip_directory(
-        &self,
-        src_dir: &Path,
-        zip_path: &Path,
-        exclude_dirs: &[&str],
-    ) -> Result<(), String> {
-        let file = std::fs::File::create(zip_path)
-            .map_err(|e| format!("创建 zip 文件失败: {}", e))?;
-        let mut zip = zip::ZipWriter::new(file);
-        let options = zip::write::FileOptions::<()>::default()
-            .compression_method(zip::CompressionMethod::Deflated);
-
-        let exclude_zip = zip_path.file_name()
-            .map(|n| n.to_string_lossy().to_string());
-
-        self.zip_add_entries(&mut zip, src_dir, src_dir, options, exclude_dirs, exclude_zip.as_deref())?;
-
-        zip.finish().map_err(|e| format!("完成 zip 写入失败: {}", e))?;
-        Ok(())
-    }
-
-    fn zip_add_entries(
-        &self,
-        zip: &mut zip::ZipWriter<std::fs::File>,
-        base: &Path,
-        current: &Path,
-        options: zip::write::FileOptions<()>,
-        exclude_dirs: &[&str],
-        exclude_file: Option<&str>,
-    ) -> Result<(), String> {
-        for entry in std::fs::read_dir(current).map_err(|e| e.to_string())? {
-            let entry = entry.map_err(|e| e.to_string())?;
-            let path = entry.path();
-            let name = path.strip_prefix(base).map_err(|e| e.to_string())?;
-            let name_str = name.to_string_lossy().to_string();
-
-            // 检查是否需要排除指定目录
-            if exclude_dirs.iter().any(|ex| name_str.starts_with(ex)) {
-                continue;
-            }
-
-            // 排除 zip 输出文件本身，避免 zip 包含自身导致文件膨胀或阻塞
-            if let Some(exclude) = exclude_file {
-                if name_str == exclude {
-                    continue;
-                }
-            }
-
-            if path.is_file() {
-                zip.start_file(name_str, options).map_err(|e| e.to_string())?;
-                let mut f = std::fs::File::open(&path).map_err(|e| e.to_string())?;
-                std::io::copy(&mut f, zip).map_err(|e| e.to_string())?;
-            } else if path.is_dir() {
-                if name != Path::new("") {
-                    zip.add_directory(name_str.clone(), options).map_err(|e| e.to_string())?;
-                }
-                self.zip_add_entries(zip, base, &path, options, exclude_dirs, exclude_file)?;
-            }
-        }
         Ok(())
     }
 
@@ -1115,4 +1077,136 @@ impl CalibrationEngine {
         self.log_info(&format!("失败标定报告已生成: {:?}", report_dir));
         Ok(())
     }
+}
+
+// =============================================================================
+// 独立模块函数（不依赖 CalibrationEngine，可在 spawn_blocking 中调用）
+// =============================================================================
+
+/// 递归统计目录下的文件数量和总字节数，排除指定子目录
+fn count_files_recursive(dir: &std::path::Path, exclude_dirs: &[impl AsRef<str>]) -> Result<(usize, u64), String> {
+    let mut count = 0usize;
+    let mut total = 0u64;
+    for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        if exclude_dirs.iter().any(|ex| name == ex.as_ref()) {
+            continue;
+        }
+
+        if path.is_file() {
+            count += 1;
+            if let Ok(meta) = path.metadata() {
+                total += meta.len();
+            }
+        } else if path.is_dir() {
+            count += 1; // 目录也算一个条目
+            let (sub_count, sub_total) = count_files_recursive(&path, exclude_dirs)?;
+            count += sub_count;
+            total += sub_total;
+        }
+    }
+    Ok((count, total))
+}
+
+/// 将目录压缩为 zip 文件，可排除指定子目录和 zip 文件本身
+/// 返回压缩的文件数量
+fn zip_directory_blocking(
+    src_dir: &std::path::Path,
+    zip_path: &std::path::Path,
+    exclude_dirs: &[&str],
+    mut log_callback: impl FnMut(&str),
+) -> Result<usize, String> {
+    let file = std::fs::File::create(zip_path)
+        .map_err(|e| format!("创建 zip 文件失败: {}", e))?;
+    // 使用 Option 包装 ZipWriter，出错时手动处理，避免 Drop 中的 debug_assert panic
+    let mut zip: Option<zip::ZipWriter<std::fs::File>> = Some(zip::ZipWriter::new(file));
+
+    // 使用 Stored（不压缩只打包）+ 最低压缩级别 fallback，最大限度提升速度
+    let options = zip::write::FileOptions::<()>::default()
+        .compression_method(zip::CompressionMethod::Stored);
+
+    let exclude_zip = zip_path.file_name()
+        .map(|n| n.to_string_lossy().to_string());
+
+    let mut file_count = 0usize;
+
+    // 添加文件到 zip
+    {
+        let z = zip.as_mut().unwrap();
+        if let Err(e) = zip_add_entries_blocking(
+            z, src_dir, src_dir, options, exclude_dirs, exclude_zip.as_deref(),
+            &mut log_callback, &mut file_count,
+        ) {
+            let _ = std::mem::ManuallyDrop::new(zip.take().unwrap());
+            let _ = std::fs::remove_file(zip_path);
+            return Err(e);
+        }
+    }
+
+    // 完成 zip 写入
+    let z = zip.take().unwrap();
+    match z.finish() {
+        Ok(_) => Ok(file_count),
+        Err(e) => {
+            let _ = std::fs::remove_file(zip_path);
+            Err(format!("完成 zip 写入失败: {}", e))
+        }
+    }
+}
+
+fn zip_add_entries_blocking(
+    zip: &mut zip::ZipWriter<std::fs::File>,
+    base: &std::path::Path,
+    current: &std::path::Path,
+    options: zip::write::FileOptions<()>,
+    exclude_dirs: &[&str],
+    exclude_file: Option<&str>,
+    log_callback: &mut dyn FnMut(&str),
+    file_count: &mut usize,
+) -> Result<(), String> {
+    for entry in std::fs::read_dir(current).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        let name = path.strip_prefix(base).map_err(|e| e.to_string())?;
+        let name_str = name.to_string_lossy().to_string();
+
+        if exclude_dirs.iter().any(|ex| name_str.starts_with(ex)) {
+            continue;
+        }
+
+        if let Some(exclude) = exclude_file {
+            if name_str == exclude {
+                continue;
+            }
+        }
+
+        if path.is_file() {
+            *file_count += 1;
+
+            // 大文件时输出进度日志，帮助排查卡顿
+            if let Ok(metadata) = path.metadata() {
+                let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+                if size_mb > 50.0 {
+                    log_callback(&format!("正在压缩大文件 {} ({:.1} MB)...", name_str, size_mb)
+                    );
+                }
+            }
+
+            zip.start_file(name_str, options).map_err(|e| e.to_string())?;
+            let mut f = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+            std::io::copy(&mut f, zip).map_err(|e| e.to_string())?;
+        } else if path.is_dir() {
+            if name != std::path::Path::new("") {
+                zip.add_directory(name_str.clone(), options).map_err(|e| e.to_string())?;
+            }
+            zip_add_entries_blocking(
+                zip, base, &path, options, exclude_dirs, exclude_file,
+                log_callback, file_count,
+            )?;
+        }
+    }
+    Ok(())
 }
