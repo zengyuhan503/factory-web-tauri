@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-标定验证报告 PDF 生成器
-使用 Pillow 生成图像并保存为 PDF
-支持中文、颜色标记、表格布局（无图片）
+Calibration Report PDF Generator
+Generate images using Pillow and save as PDF
+Support color marking, table layout (no images)
 """
 
 import json
@@ -20,14 +20,27 @@ except ImportError:
 
 
 def load_font(size):
-    """加载支持中文的字体"""
+    """加载字体"""
     candidates = [
-        ("C:/Windows/Fonts/msyh.ttc", 0),       # Windows 微软雅黑
-        ("C:/Windows/Fonts/simhei.ttf", 0),     # Windows 黑体
-        ("C:/Windows/Fonts/simsun.ttc", 0),     # Windows 宋体
-        ("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc", 0),   # Linux 文泉驿
-        ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", 0), # Linux 文泉驿微米黑
-        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0), # Linux DejaVu
+        # Windows
+        ("C:/Windows/Fonts/arial.ttf", 0),
+        ("C:/Windows/Fonts/segoeui.ttf", 0),
+        ("C:/Windows/Fonts/calibri.ttf", 0),
+        ("C:/Windows/Fonts/tahoma.ttf", 0),
+        # Linux - DejaVu (most common)
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0),
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 0),
+        ("/usr/share/fonts/dejavu/DejaVuSans.ttf", 0),
+        # Linux - Liberation
+        ("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 0),
+        ("/usr/share/fonts/liberation-sans/LiberationSans-Regular.ttf", 0),
+        # Linux - Noto Sans
+        ("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", 0),
+        ("/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf", 0),
+        # macOS
+        ("/System/Library/Fonts/Helvetica.ttc", 0),
+        ("/System/Library/Fonts/Arial.ttf", 0),
+        ("/Library/Fonts/Arial.ttf", 0),
     ]
     for path, index in candidates:
         if os.path.exists(path):
@@ -35,7 +48,28 @@ def load_font(size):
                 return ImageFont.truetype(path, size, index=index)
             except Exception:
                 continue
-    return ImageFont.load_default()
+    # Fallback: scan system font directories
+    scan_dirs = [
+        "/usr/share/fonts",
+        "/usr/local/share/fonts",
+        os.path.expanduser("~/.fonts"),
+        os.path.expanduser("~/.local/share/fonts"),
+    ]
+    for scan_dir in scan_dirs:
+        if not os.path.isdir(scan_dir):
+            continue
+        for root, _, files in os.walk(scan_dir):
+            for fname in files:
+                if fname.lower().endswith(('.ttf', '.ttc', '.otf')):
+                    fpath = os.path.join(root, fname)
+                    try:
+                        return ImageFont.truetype(fpath, size)
+                    except Exception:
+                        continue
+    print("错误: 找不到合适的字体。请安装 TrueType 字体，例如:", file=sys.stderr)
+    print("  Ubuntu/Debian: sudo apt-get install fonts-dejavu-core", file=sys.stderr)
+    print("  CentOS/RHEL: sudo yum install dejavu-sans-fonts", file=sys.stderr)
+    sys.exit(1)
 
 
 def text_size(draw, text, font):
@@ -51,7 +85,7 @@ def parse_color(color_str):
 
 
 class ReportBuilder:
-    """报告构建器，负责收集元素并分页渲染"""
+    """报告构建器"""
 
     def __init__(self):
         # A4 尺寸 @ 180 DPI
@@ -116,7 +150,7 @@ class ReportBuilder:
         self.y += 4
 
     def add_section_title(self, title, font=None):
-        """添加章节标题（带下划线）"""
+        """添加章节标题"""
         if font is None:
             font = self.font_header
         temp_img = Image.new('RGB', (self.PAGE_W, 1), 'white')
@@ -146,7 +180,7 @@ class ReportBuilder:
         self.y += row_h + 2
 
     def add_table_header(self, columns, widths, font=None):
-        """添加表格表头（带背景色）"""
+        """添加表格表头"""
         self.add_table_row(columns, widths, font, ["#333333"] * len(columns), "#e8e8e8")
 
     def add_spacer(self, height=10):
@@ -236,25 +270,25 @@ def build_report(report_data, builder):
     overall = result.get("overall", "UNKNOWN")
     is_pass = overall == "PASS"
 
-    # ========== 标题 ==========
-    builder.add_text("VR 设备标定验证报告", builder.font_title, builder.C_BLUE)
+    # ========== Title ==========
+    builder.add_text("VR Device Calibration Report", builder.font_title, builder.C_BLUE)
     builder.add_text("", builder.font_body, gap=4)
     builder.add_line()
     builder.add_text("", builder.font_body, gap=4)
 
-    # ========== 头部信息 ==========
-    builder.add_text(f"设备序列号: {report_data.get('sn', 'N/A')}", builder.font_body)
+    # ========== Header Info ==========
+    builder.add_text(f"Serial Number: {report_data.get('sn', 'N/A')}", builder.font_body)
     builder.add_text(f"CPU ID: {report_data.get('cpu_id', 'N/A')}", builder.font_body)
-    builder.add_text(f"生成时间: {report_data.get('generated_at', 'N/A')}", builder.font_body)
+    builder.add_text(f"Generated At: {report_data.get('generated_at', 'N/A')}", builder.font_body)
 
-    overall_text = f"整体结果: [PASS]" if is_pass else f"整体结果: [FAIL]"
+    overall_text = f"Overall Result: [PASS]" if is_pass else f"Overall Result: [FAIL]"
     overall_color = builder.C_GREEN if is_pass else builder.C_RED
     builder.add_text(overall_text, builder.font_header, overall_color, gap=12)
     builder.add_line()
 
-    # ========== 一、设备基本信息 ==========
-    builder.add_section_title("一、设备基本信息")
-    builder.add_text(f"  设备 UID  : {calib.get('device_uid', 'N/A')}", builder.font_body)
+    # ========== 1. Device Information ==========
+    builder.add_section_title("1. Device Information")
+    builder.add_text(f"  Device UID  : {calib.get('device_uid', 'N/A')}", builder.font_body)
 
     log_data = calib.get("log_data", {})
     ct = log_data.get("calibration_time", {})
@@ -263,17 +297,17 @@ def build_report(report_data, builder):
         cal_s = ct.get("calibration_s", 0)
         total = ct.get("total_s", det_s + cal_s)
         builder.add_text(
-            f"  标定耗时  : 检测 {det_s:.1f}s + 优化 {cal_s:.1f}s = {total:.1f}s",
+            f"  Calibration Time  : Detection {det_s:.1f}s + Optimization {cal_s:.1f}s = {total:.1f}s",
             builder.font_body
         )
 
     cameras = calib.get("cameras", {})
-    builder.add_text(f"  摄像头数量 : {len(cameras)}", builder.font_body)
+    builder.add_text(f"  Camera Count : {len(cameras)}", builder.font_body)
 
-    # ========== 二、摄像头内参 ==========
-    builder.add_section_title("二、摄像头内参")
+    # ========== 2. Camera Intrinsics ==========
+    builder.add_section_title("2. Camera Intrinsics")
 
-    cam_headers = ["摄像头", "分辨率", "焦距(px)", "主点(px)", "模型", "快门"]
+    cam_headers = ["Camera", "Resolution", "Focal Length(px)", "Principal Point(px)", "Model", "Shutter"]
     cam_widths = [140, 100, 110, 140, 200, 80]
     builder.add_table_header(cam_headers, cam_widths, builder.font_small)
 
@@ -303,10 +337,10 @@ def build_report(report_data, builder):
         ]
         builder.add_table_row(row, cam_widths, builder.font_tiny)
 
-    # ========== 三、标定板检测率 ==========
-    builder.add_section_title("三、标定板检测率")
+    # ========== 3. Target Detection Rate ==========
+    builder.add_section_title("3. Target Detection Rate")
 
-    det_headers = ["摄像头", "A板", "B板", "综合检测率", "评级"]
+    det_headers = ["Camera", "Target A", "Target B", "Overall Rate", "Rating"]
     det_widths = [140, 100, 100, 120, 100]
     builder.add_table_header(det_headers, det_widths, builder.font_small)
 
@@ -344,10 +378,10 @@ def build_report(report_data, builder):
             colors = ["#333333"] * 4 + [rcolor]
             builder.add_table_row(row, det_widths, builder.font_tiny, colors)
 
-    # ========== 四、内参标定精度 ==========
-    builder.add_section_title("四、内参标定精度 (RMS 残差)")
+    # ========== 4. Intrinsic Calibration Accuracy ==========
+    builder.add_section_title("4. Intrinsic Calibration Accuracy (RMS Residual)")
 
-    intrin_headers = ["摄像头", "残差(px)", "阈值", "结果"]
+    intrin_headers = ["Camera", "Residual(px)", "Threshold", "Result"]
     intrin_widths = [180, 120, 120, 100]
     builder.add_table_header(intrin_headers, intrin_widths, builder.font_small)
 
@@ -364,10 +398,10 @@ def build_report(report_data, builder):
         colors = ["#333333", "#333333", "#333333", rcolor]
         builder.add_table_row(row, intrin_widths, builder.font_tiny, colors)
 
-    # ========== 五、联合标定精度 ==========
-    builder.add_section_title("五、联合标定精度 (外参 + IMU)")
+    # ========== 5. Joint Calibration Accuracy ==========
+    builder.add_section_title("5. Joint Calibration Accuracy (Extrinsics + IMU)")
 
-    ext_headers = ["阶段", "RMS(px)", "结果"]
+    ext_headers = ["Stage", "RMS(px)", "Result"]
     ext_widths = [420, 100, 100]
     builder.add_table_header(ext_headers, ext_widths, builder.font_small)
 
@@ -380,7 +414,7 @@ def build_report(report_data, builder):
         rcolor = builder.C_GREEN if is_ok else builder.C_RED
 
         if stage == "Full-Extrinsics+Intrinsics-Extrinsics":
-            result_text = f"{icon} {item.get('result', 'N/A')} (阈值 < {item.get('threshold', 0)})"
+            result_text = f"{icon} {item.get('result', 'N/A')} (Threshold < {item.get('threshold', 0)})"
         else:
             if rms <= 0.5:
                 result_text = "[**] EXCELLENT"
@@ -399,12 +433,12 @@ def build_report(report_data, builder):
         colors = ["#333333", "#333333", rcolor]
         builder.add_table_row(row, ext_widths, builder.font_tiny, colors)
 
-    # ========== 六、外参几何关系 ==========
-    builder.add_section_title("六、外参几何关系 (相对 trackingA)")
+    # ========== 6. Extrinsic Geometry ==========
+    builder.add_section_title("6. Extrinsic Geometry (Relative to trackingA)")
 
     ext_geom = log_data.get("extrinsic", {}).get("baselines", {})
     if ext_geom:
-        bl_headers = ["摄像头", "基线(mm)", "主轴夹角", "角分辨率(px/°)"]
+        bl_headers = ["Camera", "Baseline(mm)", "Principal Axis Angle", "Angular Resolution(px/°)"]
         bl_widths = [160, 120, 120, 140]
         builder.add_table_header(bl_headers, bl_widths, builder.font_small)
 
@@ -417,10 +451,10 @@ def build_report(report_data, builder):
                 row = [name, f"{baseline:.1f}", f"{angle:.1f}°", f"{ppd:.2f}"]
                 builder.add_table_row(row, bl_widths, builder.font_tiny)
 
-    # ========== 七、摄像头一致性 ==========
-    builder.add_section_title("七、摄像头一致性分析")
+    # ========== 7. Camera Consistency ==========
+    builder.add_section_title("7. Camera Consistency Analysis")
 
-    cons_headers = ["对比组", "焦距差%", "主点偏移", "结果"]
+    cons_headers = ["Pair", "Focal Length Diff%", "Principal Point Shift", "Result"]
     cons_widths = [200, 120, 120, 100]
     builder.add_table_header(cons_headers, cons_widths, builder.font_small)
 
@@ -428,11 +462,11 @@ def build_report(report_data, builder):
         label = item.get("label", "N/A")
         # 简化标签
         if "trackingA" in label and "trackingB" in label:
-            label = "Tracking 组"
+            label = "Tracking Pair"
         elif "ctrl-trackingA" in label and "ctrl-trackingB" in label:
-            label = "Ctrl-Tracking 组"
+            label = "Ctrl-Tracking Pair"
         elif "rgb-left" in label and "rgb-right" in label:
-            label = "RGB 组"
+            label = "RGB Pair"
 
         is_ok = item.get("result") == "PASS"
         icon = "[OK]" if is_ok else "[!!]"
@@ -447,17 +481,17 @@ def build_report(report_data, builder):
         colors = ["#333333", "#333333", "#333333", rcolor]
         builder.add_table_row(row, cons_widths, builder.font_tiny, colors)
 
-    # ========== 八、IMU 标定结果 ==========
-    builder.add_section_title("八、IMU 标定结果")
+    # ========== 8. IMU Calibration Results ==========
+    builder.add_section_title("8. IMU Calibration Results")
 
     imu = calib.get("imu", {})
     if imu:
         if "moving_accel_noise" in imu:
-            builder.add_text(f"  加速度计噪声 : {imu['moving_accel_noise']:.6f}", builder.font_body)
+            builder.add_text(f"  Accelerometer Noise : {imu['moving_accel_noise']:.6f}", builder.font_body)
         if "moving_gyro_noise" in imu:
-            builder.add_text(f"  陀螺仪噪声   : {imu['moving_gyro_noise']:.6f}", builder.font_body)
+            builder.add_text(f"  Gyroscope Noise   : {imu['moving_gyro_noise']:.6f}", builder.font_body)
         if "delta" in imu:
-            builder.add_text(f"  时间对齐     : {imu['delta'] * 1000:.3f} ms", builder.font_body)
+            builder.add_text(f"  Time Alignment     : {imu['delta'] * 1000:.3f} ms", builder.font_body)
         if "aBias" in imu:
             ab = imu["aBias"]
             builder.add_text(f"  Accel bias   : ({ab[0]:.4f}, {ab[1]:.4f}, {ab[2]:.4f})", builder.font_body)
@@ -465,11 +499,11 @@ def build_report(report_data, builder):
             wb = imu["wBias"]
             builder.add_text(f"  Gyro bias    : ({wb[0]:.6f}, {wb[1]:.6f}, {wb[2]:.6f})", builder.font_body)
     else:
-        builder.add_text("  无 IMU 数据", builder.font_body)
+        builder.add_text("  No IMU Data", builder.font_body)
 
     # IMU bias 判定表格
     builder.add_text("", builder.font_body, gap=4)
-    imu_headers = ["检查项", "值", "阈值", "结果"]
+    imu_headers = ["Item", "Value", "Threshold", "Result"]
     imu_widths = [180, 120, 120, 100]
     builder.add_table_header(imu_headers, imu_widths, builder.font_small)
 
@@ -486,8 +520,8 @@ def build_report(report_data, builder):
         colors = ["#333333", "#333333", "#333333", rcolor]
         builder.add_table_row(row, imu_widths, builder.font_tiny, colors)
 
-    # ========== 九、警告 & 异常 ==========
-    builder.add_section_title("九、警告 & 异常")
+    # ========== 9. Warnings & Exceptions ==========
+    builder.add_section_title("9. Warnings & Exceptions")
 
     has_warn = False
     warnings = log_data.get("warnings", [])
@@ -495,7 +529,7 @@ def build_report(report_data, builder):
         builder.add_text(f"  WARNING: {warn}", builder.font_body, builder.C_ORANGE)
         has_warn = True
     if len(warnings) > 10:
-        builder.add_text(f"  ... 共 {len(warnings)} 条警告", builder.font_body, builder.C_GRAY)
+        builder.add_text(f"  ... Total {len(warnings)} warnings", builder.font_body, builder.C_GRAY)
         has_warn = True
 
     special = log_data.get("special_checks", [])
@@ -509,41 +543,41 @@ def build_report(report_data, builder):
         has_warn = True
 
     if not has_warn:
-        builder.add_text("  无警告", builder.font_body, builder.C_GREEN)
+        builder.add_text("  No Warnings", builder.font_body, builder.C_GREEN)
 
-    # ========== 十、失败原因 ==========
-    builder.add_section_title("十、失败原因")
+    # ========== 10. Failure Reasons ==========
+    builder.add_section_title("10. Failure Reasons")
 
     failures = result.get("failures", [])
     if not failures:
-        builder.add_text("  （无）", builder.font_body, builder.C_GREEN)
+        builder.add_text("  (None)", builder.font_body, builder.C_GREEN)
     else:
         for i, f in enumerate(failures, 1):
             builder.add_text(f"  {i}. {f}", builder.font_body, builder.C_RED)
 
-    # ========== 十一、总结 ==========
-    builder.add_section_title("十一、总结")
+    # ========== 11. Summary ==========
+    builder.add_section_title("11. Summary")
 
-    # 总评（大号醒目显示）
+    # Overall（大号醒目显示）
     overall_color = builder.C_GREEN if is_pass else builder.C_RED
-    builder.add_text(f"  总评: {overall}", builder.font_header, overall_color)
+    builder.add_text(f"  Overall: {overall}", builder.font_header, overall_color)
 
     # 联合标定残差
     ext_full = log_data.get("extrinsic", {}).get("CalibrateIMU-robust-Trajectory-Extrinsics-Intrinsics-Full", {})
     if ext_full:
         joint_rms = ext_full.get("rms", 0)
-        builder.add_text(f"  联合标定残差: {joint_rms:.4f} px", builder.font_body)
+        builder.add_text(f"  Joint Calibration Residual: {joint_rms:.4f} px", builder.font_body)
 
     # 最弱摄像头
     intrinsic_results = calib.get("results", {}).get("intrinsic", [])
     if intrinsic_results:
         worst = max(intrinsic_results, key=lambda x: x.get("rms", 0))
         builder.add_text(
-            f"  内参最弱摄像头: {worst.get('camera', 'N/A')} ({worst.get('rms', 0):.4f} px)",
+            f"  Worst Intrinsic Camera: {worst.get('camera', 'N/A')} ({worst.get('rms', 0):.4f} px)",
             builder.font_body
         )
 
-    # 检测率最低
+    # 检测率最低摄像头
     det_data = log_data.get("detection", {})
     if det_data:
         worst_cam = "N/A"
@@ -558,7 +592,7 @@ def build_report(report_data, builder):
             if rate < worst_rate:
                 worst_rate = rate
                 worst_cam = cam_name
-        builder.add_text(f"  检测率最低摄像头: {worst_cam} ({worst_rate:.1f}%)", builder.font_body)
+        builder.add_text(f"  DetectionLowest RateCamera: {worst_cam} ({worst_rate:.1f}%)", builder.font_body)
 
     builder.add_text("", builder.font_body, gap=8)
     builder.add_line()

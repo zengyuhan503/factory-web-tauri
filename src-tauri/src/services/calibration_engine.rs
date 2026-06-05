@@ -843,12 +843,8 @@ impl CalibrationEngine {
         dataset_path: &str,
         _app: &tauri::AppHandle,
     ) -> Result<(), String> {
-        let dir = Path::new(dataset_path)
-            .parent()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|| dataset_path.to_string());
-
-        let report_dir = Path::new(&dir).join("calib");
+        let work_dir = get_device_work_dir(&self.cpu_id);
+        let report_dir = work_dir.join("calib");
         std::fs::create_dir_all(&report_dir).map_err(|e| e.to_string())?;
 
         // 从 parse_calib.py 的 JSON 构建报告数据
@@ -907,10 +903,7 @@ impl CalibrationEngine {
         dataset_path: &str,
         _app: &tauri::AppHandle,
     ) -> Result<(), String> {
-        let dir = Path::new(dataset_path)
-            .parent()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|| dataset_path.to_string());
+        let work_dir = get_device_work_dir(&self.cpu_id);
 
         // 尝试运行 parse_calib.py 获取已有数据
         let runner = PythonRunner::new(self.serial.clone(), self.resource_dir.clone());
@@ -967,7 +960,7 @@ impl CalibrationEngine {
         };
 
         // 生成报告
-        let report_dir = Path::new(&dir).join("calib");
+        let report_dir = work_dir.join("calib");
         let _ = std::fs::create_dir_all(&report_dir);
 
         let _ = crate::utils::calib_report::generate_json_report(&report, &report_dir,

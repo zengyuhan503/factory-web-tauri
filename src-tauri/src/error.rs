@@ -51,8 +51,8 @@ pub enum CalibError {
     XmlParseFailed(String),
 
     // === C: 标定算法/验证 ===
-    #[error("从设备拉取标定数据失败，请检查设备连接")]
-    DatasetPullFailed,
+    #[error("从设备拉取标定数据失败: {0}")]
+    DatasetPullFailed(String),
 
     #[error("标定板检测失败: {detail}")]
     TargetDetectionFailed { detail: String },
@@ -60,13 +60,13 @@ pub enum CalibError {
     #[error("标定板尺寸偏差过大 (实测误差{actual:.3}mm，容差{tolerance:.3}mm)，请检查标定板")]
     TargetMeasurementError { actual: f64, tolerance: f64 },
 
-    #[error("摄像头标定重投影误差过大，请检查拍摄图片质量")]
+    #[error("标定计算精度不足，请检查拍摄图片质量")]
     ReprojectionErrorExceeded,
 
     #[error("摄像头标定计算失败: {0}")]
     CamCalibrationFailed(String),
 
-    #[error("标定文件格式转换失败")]
+    #[error("标定结果文件生成异常，缺少必要的输出文件")]
     YamlConvertFailed,
 
     #[error("摄像头覆盖率验证未通过: {0}")]
@@ -131,7 +131,7 @@ impl CalibError {
             CalibError::ZipFileNotFound(_) => "B004",
             CalibError::WorkDirCreateFailed(_) => "B005",
             CalibError::XmlParseFailed(_) => "B006",
-            CalibError::DatasetPullFailed => "C001",
+            CalibError::DatasetPullFailed(_) => "C001",
             CalibError::TargetDetectionFailed { .. } => "C002",
             CalibError::TargetMeasurementError { .. } => "C003",
             CalibError::ReprojectionErrorExceeded => "C004",
@@ -173,7 +173,7 @@ impl CalibError {
             CalibError::ZipFileNotFound(_) => "标定结果压缩包不存在".to_string(),
             CalibError::WorkDirCreateFailed(_) => "创建工作目录失败，请检查磁盘空间".to_string(),
             CalibError::XmlParseFailed(_) => "标定结果文件解析失败".to_string(),
-            CalibError::DatasetPullFailed => "从设备拉取数据失败，请检查设备连接".to_string(),
+            CalibError::DatasetPullFailed(_) => "从设备拉取数据失败，请检查设备连接".to_string(),
             CalibError::TargetDetectionFailed { .. } => {
                 "标定板检测失败，请检查拍摄图片".to_string()
             }
@@ -273,7 +273,7 @@ impl CalibError {
 
             CalibError::CalibrationFileMissing(_) => "标定流程未完成即终止，请重新执行标定",
 
-            CalibError::DatasetNotFound(_) | CalibError::DatasetPullFailed => {
+            CalibError::DatasetNotFound(_) | CalibError::DatasetPullFailed(_) => {
                 "请检查设备连接状态，确认设备上有标定数据"
             }
 
@@ -412,11 +412,21 @@ pub fn parse_python_calib_error(script_name: &str, logs: &[String]) -> CalibErro
         "DevicePull.py" => {
             let reason = extract_failure_reason(&full_log)
                 .unwrap_or_else(|| "从设备拉取标定数据失败".to_string());
-            if reason.len() < 50 {
-                CalibError::DatasetPullFailed
+            // 根据具体错误类型返回不同的白话提示
+            let user_reason = if full_log.contains("图片数据量不足") {
+                "设备拍摄图片不足，请在半成品工位重新拍摄".to_string()
+            } else if full_log.contains("IMU ACCEL") || full_log.contains("IMU GYRO") {
+                "设备传感器数据缺失，请检查设备后重新拍摄".to_string()
+            } else if full_log.contains("Camera") && full_log.contains("数量不匹配") {
+                "摄像头数据不完整，请检查设备摄像头是否正常".to_string()
+            } else if full_log.contains("QVR数据集不存在") {
+                "设备上未找到标定数据，请在设备上完成拍摄".to_string()
+            } else if reason.len() < 100 {
+                reason
             } else {
-                CalibError::CamCalibrationFailed(format!("数据拉取: {}", reason))
-            }
+                "从设备获取数据失败，请重新插拔设备后重试".to_string()
+            };
+            CalibError::DatasetPullFailed(user_reason)
         }
 
         "ConvertSlamYaml.py" => CalibError::YamlConvertFailed,
@@ -569,7 +579,7 @@ impl AdbError {
             AdbError::ServerError(msg) => CalibError::AdbServerError(msg.clone()),
             AdbError::ShellFailed(msg) => CalibError::AdbCommandFailed(msg.clone()),
             AdbError::PushFailed(msg) => CalibError::PushFailed(msg.clone()),
-            AdbError::PullFailed(_msg) => CalibError::DatasetPullFailed,
+            AdbError::PullFailed(msg) => CalibError::DatasetPullFailed(format!("文件传输失败: {}", msg)),
             AdbError::CommandFailed(msg) => CalibError::AdbCommandFailed(msg.clone()),
             AdbError::CpuIdFailed(msg) => CalibError::CpuIdFailed(msg.clone()),
             AdbError::Unknown(msg) => CalibError::Unknown(msg.clone()),

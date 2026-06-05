@@ -267,16 +267,16 @@ impl PythonRunner {
                 .collect();
             for code in codes {
                 failures.push(match code {
-                    20 => "摄像头内参 RMS 超阈值".to_string(),
-                    21 => "Full-Extrinsics+Intrinsics-Extrinsics RMS 超阈值".to_string(),
-                    22 => "联合标定 RMS 超阈值".to_string(),
-                    23 => "IMU 加速度计 bias 超阈值".to_string(),
-                    24 => "IMU 陀螺仪 bias 超阈值".to_string(),
-                    25 => "标定文件 XML 缺少 IMUNoise 节点".to_string(),
-                    26 => "标定文件 XML 中 IMUNoise 缺少必填字段".to_string(),
-                    27 => "摄像头检测率低于合格阈值".to_string(),
-                    2 => "标定结果存在多项失败".to_string(),
-                    _ => format!("未知失败码: {}", code),
+                    20 => "摄像头标定精度不足，建议重新拍摄（确保标定板清晰、光线充足）".to_string(),
+                    21 => "摄像头相对位置标定不合格，请检查摄像头安装是否松动".to_string(),
+                    22 => "整体标定精度不合格，建议重新拍摄或检查设备硬件".to_string(),
+                    23 => "IMU传感器加速度偏差过大，设备可能需要返修".to_string(),
+                    24 => "IMU传感器陀螺仪偏差过大，设备可能需要返修".to_string(),
+                    25 => "标定结果文件缺少IMU噪声参数，请重新执行标定".to_string(),
+                    26 => "标定结果文件IMU参数不完整，请重新执行标定".to_string(),
+                    27 => "标定板检测率过低，请重新拍摄（确保标定板完整出现在画面中）".to_string(),
+                    2 => "标定结果存在多项不合格".to_string(),
+                    _ => format!("未知失败项 (代码{})", code),
                 });
             }
         }
@@ -368,16 +368,16 @@ impl PythonRunner {
                 .collect();
             for code in codes {
                 failures.push(match code {
-                    20 => "摄像头内参 RMS 超阈值".to_string(),
-                    21 => "Full-Extrinsics+Intrinsics-Extrinsics RMS 超阈值".to_string(),
-                    22 => "联合标定 RMS 超阈值".to_string(),
-                    23 => "IMU 加速度计 bias 超阈值".to_string(),
-                    24 => "IMU 陀螺仪 bias 超阈值".to_string(),
-                    25 => "标定文件 XML 缺少 IMUNoise 节点".to_string(),
-                    26 => "标定文件 XML 中 IMUNoise 缺少必填字段".to_string(),
-                    27 => "摄像头检测率低于合格阈值".to_string(),
-                    2 => "标定结果存在多项失败".to_string(),
-                    _ => format!("未知失败码: {}", code),
+                    20 => "摄像头标定精度不足，建议重新拍摄（确保标定板清晰、光线充足）".to_string(),
+                    21 => "摄像头相对位置标定不合格，请检查摄像头安装是否松动".to_string(),
+                    22 => "整体标定精度不合格，建议重新拍摄或检查设备硬件".to_string(),
+                    23 => "IMU传感器加速度偏差过大，设备可能需要返修".to_string(),
+                    24 => "IMU传感器陀螺仪偏差过大，设备可能需要返修".to_string(),
+                    25 => "标定结果文件缺少IMU噪声参数，请重新执行标定".to_string(),
+                    26 => "标定结果文件IMU参数不完整，请重新执行标定".to_string(),
+                    27 => "标定板检测率过低，请重新拍摄（确保标定板完整出现在画面中）".to_string(),
+                    2 => "标定结果存在多项不合格".to_string(),
+                    _ => format!("未知失败项 (代码{})", code),
                 });
             }
         }
