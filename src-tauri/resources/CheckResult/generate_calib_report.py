@@ -19,15 +19,35 @@ except ImportError:
     sys.exit(1)
 
 
+def _verify_font_letters(font):
+    """验证字体能否正确显示基本英文字母，避免加载到 CJK 字体导致 ASCII 字符映射错误"""
+    try:
+        temp_img = Image.new('RGB', (200, 50), 'white')
+        temp_draw = ImageDraw.Draw(temp_img)
+        # 测试字符串包含大写、小写、数字、冒号、空格
+        test_text = "DOF: 87.9%"
+        bbox = temp_draw.textbbox((0, 0), test_text, font=font)
+        # 如果能获取 bbox 且宽度合理，说明字体可用
+        w = bbox[2] - bbox[0]
+        return w > 30  # 至少要有一定宽度
+    except Exception:
+        return False
+
+
 def load_font(size):
-    """加载字体"""
+    """加载字体，优先使用能正确显示英文的字体，避免 ttc 索引导致的字符映射错误"""
+    # 优先候选：独立的 .ttf 文件，避免 .ttc 的 index 歧义问题
     candidates = [
-        # Windows
+        # Windows - 优先使用支持中英文的字体
+        ("C:/Windows/Fonts/msyh.ttc", 0),       # 微软雅黑
+        ("C:/Windows/Fonts/msyhbd.ttc", 0),     # 微软雅黑粗体
+        ("C:/Windows/Fonts/simhei.ttf", 0),     # 黑体
+        ("C:/Windows/Fonts/simsun.ttc", 0),     # 宋体
         ("C:/Windows/Fonts/arial.ttf", 0),
         ("C:/Windows/Fonts/segoeui.ttf", 0),
         ("C:/Windows/Fonts/calibri.ttf", 0),
         ("C:/Windows/Fonts/tahoma.ttf", 0),
-        # Linux - DejaVu (most common)
+        # Linux - DejaVu (most common, reliable)
         ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0),
         ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 0),
         ("/usr/share/fonts/dejavu/DejaVuSans.ttf", 0),
@@ -37,18 +57,24 @@ def load_font(size):
         # Linux - Noto Sans
         ("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", 0),
         ("/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf", 0),
+        # Linux - Noto CJK (支持中文)
+        ("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc", 0),
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 0),
         # macOS
+        ("/Library/Fonts/Arial.ttf", 0),
         ("/System/Library/Fonts/Helvetica.ttc", 0),
         ("/System/Library/Fonts/Arial.ttf", 0),
-        ("/Library/Fonts/Arial.ttf", 0),
     ]
     for path, index in candidates:
         if os.path.exists(path):
             try:
-                return ImageFont.truetype(path, size, index=index)
+                font = ImageFont.truetype(path, size, index=index)
+                if _verify_font_letters(font):
+                    return font
             except Exception:
                 continue
-    # Fallback: scan system font directories
+
+    # Fallback: scan system font directories, skip .ttc files to avoid index issues
     scan_dirs = [
         "/usr/share/fonts",
         "/usr/local/share/fonts",
@@ -60,12 +86,16 @@ def load_font(size):
             continue
         for root, _, files in os.walk(scan_dir):
             for fname in files:
-                if fname.lower().endswith(('.ttf', '.ttc', '.otf')):
+                # 优先扫描 .ttf，跳过可能有 index 问题的 .ttc
+                if fname.lower().endswith(('.ttf', '.otf')):
                     fpath = os.path.join(root, fname)
                     try:
-                        return ImageFont.truetype(fpath, size)
+                        font = ImageFont.truetype(fpath, size)
+                        if _verify_font_letters(font):
+                            return font
                     except Exception:
                         continue
+
     print("错误: 找不到合适的字体。请安装 TrueType 字体，例如:", file=sys.stderr)
     print("  Ubuntu/Debian: sudo apt-get install fonts-dejavu-core", file=sys.stderr)
     print("  CentOS/RHEL: sudo yum install dejavu-sans-fonts", file=sys.stderr)
@@ -130,8 +160,8 @@ class ReportBuilder:
             return True
         return False
 
-    def add_text(self, text, font, color="#333333", x=None, gap=8):
-        """添加文本"""
+    def add_text(self, text, font, color="#333333", x=None, gap=12):
+        """添加文本，默认 gap 从 8 增大到 12"""
         if x is None:
             x = self.MARGIN
         # 临时计算高度
@@ -144,25 +174,26 @@ class ReportBuilder:
         self.y += h + gap
 
     def add_line(self, color="#cccccc"):
-        """添加水平分隔线"""
-        self.check_page_break(4)
+        """添加水平分隔线，增大上下空间"""
+        self.check_page_break(8)
         self.current_page_elements.append(("hline", self.MARGIN, self.y, self.PAGE_W - self.MARGIN, self.y, color))
-        self.y += 4
+        self.y += 8
 
     def add_section_title(self, title, font=None):
-        """添加章节标题"""
+        """添加章节标题，增大上下间距"""
         if font is None:
             font = self.font_header
         temp_img = Image.new('RGB', (self.PAGE_W, 1), 'white')
         temp_draw = ImageDraw.Draw(temp_img)
         h = text_size(temp_draw, title, font)[1]
 
-        self.check_page_break(h + 12)
-        self.current_page_elements.append(("section", self.MARGIN, self.y, title, font, self.C_BLUE))
-        self.y += h + 12
+        # 标题前空 18px，标题后空 14px + 下划线 2px
+        self.check_page_break(h + 18 + 14)
+        self.current_page_elements.append(("section", self.MARGIN, self.y + 18, title, font, self.C_BLUE))
+        self.y += h + 18 + 14
 
     def add_table_row(self, columns, widths, font=None, colors=None, bg_color=None):
-        """添加表格行"""
+        """添加表格行，增大行高和行间距避免线条覆盖文字"""
         if font is None:
             font = self.font_small
         if colors is None:
@@ -171,20 +202,22 @@ class ReportBuilder:
         temp_img = Image.new('RGB', (self.PAGE_W, 1), 'white')
         temp_draw = ImageDraw.Draw(temp_img)
         max_h = max(text_size(temp_draw, str(c), font)[1] for c in columns)
-        row_h = max_h + 6
+        # 行高从 max_h + 6 增大到 max_h + 16（上下各 8px 内边距）
+        row_h = max_h + 16
 
-        self.check_page_break(row_h + 2)
+        # 行间距从 2 增大到 4
+        self.check_page_break(row_h + 4)
 
         x = self.MARGIN
         self.current_page_elements.append(("row", self.MARGIN, self.y, columns, widths, font, colors, bg_color, row_h))
-        self.y += row_h + 2
+        self.y += row_h + 4
 
     def add_table_header(self, columns, widths, font=None):
         """添加表格表头"""
         self.add_table_row(columns, widths, font, ["#333333"] * len(columns), "#e8e8e8")
 
-    def add_spacer(self, height=10):
-        """添加空白间距"""
+    def add_spacer(self, height=14):
+        """添加空白间距，默认从 10 增大到 14"""
         self.check_page_break(height)
         self.y += height
 
@@ -271,19 +304,19 @@ def build_report(report_data, builder):
     is_pass = overall == "PASS"
 
     # ========== Title ==========
-    builder.add_text("VR Device Calibration Report", builder.font_title, builder.C_BLUE)
-    builder.add_text("", builder.font_body, gap=4)
+    builder.add_text("VR Device Calibration Report", builder.font_title, builder.C_BLUE, gap=14)
     builder.add_line()
-    builder.add_text("", builder.font_body, gap=4)
 
     # ========== Header Info ==========
+    builder.add_spacer(10)
     builder.add_text(f"Serial Number: {report_data.get('sn', 'N/A')}", builder.font_body)
     builder.add_text(f"CPU ID: {report_data.get('cpu_id', 'N/A')}", builder.font_body)
     builder.add_text(f"Generated At: {report_data.get('generated_at', 'N/A')}", builder.font_body)
+    builder.add_spacer(8)
 
     overall_text = f"Overall Result: [PASS]" if is_pass else f"Overall Result: [FAIL]"
     overall_color = builder.C_GREEN if is_pass else builder.C_RED
-    builder.add_text(overall_text, builder.font_header, overall_color, gap=12)
+    builder.add_text(overall_text, builder.font_header, overall_color, gap=14)
     builder.add_line()
 
     # ========== 1. Device Information ==========
@@ -502,7 +535,7 @@ def build_report(report_data, builder):
         builder.add_text("  No IMU Data", builder.font_body)
 
     # IMU bias 判定表格
-    builder.add_text("", builder.font_body, gap=4)
+    builder.add_spacer(8)
     imu_headers = ["Item", "Value", "Threshold", "Result"]
     imu_widths = [180, 120, 120, 100]
     builder.add_table_header(imu_headers, imu_widths, builder.font_small)
@@ -594,7 +627,7 @@ def build_report(report_data, builder):
                 worst_cam = cam_name
         builder.add_text(f"  DetectionLowest RateCamera: {worst_cam} ({worst_rate:.1f}%)", builder.font_body)
 
-    builder.add_text("", builder.font_body, gap=8)
+    builder.add_spacer(12)
     builder.add_line()
 
 

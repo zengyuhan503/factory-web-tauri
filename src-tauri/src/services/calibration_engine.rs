@@ -836,6 +836,56 @@ impl CalibrationEngine {
         Ok(())
     }
 
+    /// 复制标定相关原始文件到报告目录（PDF 生成成功后调用）
+    fn copy_calib_source_files(&self, dataset_path: &str, report_dir: &Path) {
+        // 源文件可能在 dataset_path 或其父目录中
+        let source_dirs: Vec<std::path::PathBuf> = vec![
+            dataset_path.into(),
+            std::path::Path::new(dataset_path)
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| dataset_path.into()),
+        ];
+
+        let files_to_copy = [
+            ("Calib.log", true),
+            ("device_calibration.xml", true),
+            ("parsed_report.txt", false), // 可选
+        ];
+
+        for (filename, required) in &files_to_copy {
+            let mut copied = false;
+            for src_dir in &source_dirs {
+                let src = src_dir.join(filename);
+                if src.exists() {
+                    let dst = report_dir.join(filename);
+                    match std::fs::copy(&src, &dst) {
+                        Ok(_) => {
+                            self.log_info(&format!(
+                                "已复制 {} 到报告目录",
+                                filename
+                            ));
+                            copied = true;
+                            break;
+                        }
+                        Err(e) => {
+                            self.log_warn(&format!(
+                                "复制 {} 失败: {}",
+                                filename, e
+                            ));
+                        }
+                    }
+                }
+            }
+            if !copied && *required {
+                self.log_warn(&format!(
+                    "未找到源文件: {}（ searched in {:?} ）",
+                    filename, source_dirs
+                ));
+            }
+        }
+    }
+
     /// 生成标定报告（JSON + TXT + PDF）
     async fn generate_calib_report(
         &self,
@@ -888,7 +938,11 @@ impl CalibrationEngine {
         match crate::utils::calib_report::generate_pdf_report(
             &report, &report_dir, &self.resource_dir,
         ) {
-            Ok(path) => self.log_info(&format!("标定 PDF 报告已生成: {}", path)),
+            Ok(path) => {
+                self.log_info(&format!("标定 PDF 报告已生成: {}", path));
+                // PDF 生成成功后，复制原始标定文件到报告目录
+                self.copy_calib_source_files(dataset_path, &report_dir);
+            }
             Err(e) => self.log_warn(&format!("生成 PDF 失败: {}", e)),
         }
 
@@ -967,9 +1021,15 @@ impl CalibrationEngine {
         );
         let _ = crate::utils::calib_report::generate_text_report(&report, &report_dir,
         );
-        let _ = crate::utils::calib_report::generate_pdf_report(
+        match crate::utils::calib_report::generate_pdf_report(
             &report, &report_dir, &self.resource_dir,
-        );
+        ) {
+            Ok(_) => {
+                // PDF 生成成功后，复制原始标定文件到报告目录
+                self.copy_calib_source_files(dataset_path, &report_dir);
+            }
+            Err(_) => {}
+        }
 
         self.log_info(&format!("失败标定报告已生成: {:?}", report_dir));
         Ok(())

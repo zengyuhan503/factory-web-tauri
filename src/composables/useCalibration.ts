@@ -187,6 +187,7 @@ export function useCalibration() {
       const slot = slots.find(sl => sl.slotId === s.slot_id);
       if (slot) {
         slot.serial = s.serial;
+        slot.cpuId = s.cpu_id;
         slot.status = s.status;
         slot.progress = s.progress;
         slot.stepName = s.step_name;
