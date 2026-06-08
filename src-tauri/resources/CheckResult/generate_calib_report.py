@@ -384,7 +384,7 @@ def build_report(report_data, builder):
     builder.add_section_title("2. Camera Intrinsics")
 
     cam_headers = ["Camera", "Resolution", "Focal Length(px)", "Principal Point(px)", "Model", "Shutter"]
-    cam_widths = [140, 100, 110, 140, 200, 80]
+    cam_widths = [140, 100, 150, 180, 200, 80]
     builder.add_table_header(cam_headers, cam_widths, builder.font_small)
 
     cam_names = sorted(cameras.keys(), key=lambda n: cameras[n].get("id", 999))
@@ -515,7 +515,7 @@ def build_report(report_data, builder):
     ext_geom = log_data.get("extrinsic", {}).get("baselines", {})
     if ext_geom:
         bl_headers = ["Camera", "Baseline(mm)", "Principal Axis Angle", "Angular Resolution(px/deg)"]
-        bl_widths = [160, 120, 120, 140]
+        bl_widths = [160, 120, 190, 240]
         builder.add_table_header(bl_headers, bl_widths, builder.font_small)
 
         for name in ["trackingB", "ctrl-trackingA", "ctrl-trackingB", "rgb-left", "rgb-right"]:
@@ -531,7 +531,7 @@ def build_report(report_data, builder):
     builder.add_section_title("7. Camera Consistency Analysis")
 
     cons_headers = ["Pair", "Focal Length Diff%", "Principal Point Shift", "Result"]
-    cons_widths = [200, 120, 120, 100]
+    cons_widths = [200, 140, 200, 100]
     builder.add_table_header(cons_headers, cons_widths, builder.font_small)
 
     for item in calib.get("results", {}).get("consistency", []):
