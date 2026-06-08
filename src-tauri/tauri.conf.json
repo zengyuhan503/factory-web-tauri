@@ -24,7 +24,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "skyworthxr_skycalib",
+      "identifier": "skyworthxr-skycalib",
       "longDescription": "",
       "macOS": {
         "entitlements": null,
