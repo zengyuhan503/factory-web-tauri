@@ -227,7 +227,7 @@ function onCancel() {
 
 .settings-modal {
   width: 560px;
-  max-height: 80vh;
+  max-height: 85vh;
   overflow-y: auto;
 }
 
@@ -293,6 +293,9 @@ function onCancel() {
   font-weight: 500;
   color: #374151;
   margin-bottom: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .form-select,
@@ -394,6 +397,7 @@ function onCancel() {
   border-radius: 12px;
   transition: background 0.25s ease, box-shadow 0.25s ease;
   flex-shrink: 0;
+  display: inline-block;
 }
 
 .switch-slider::after {
