@@ -2,11 +2,18 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import DeviceGrid from './components/DeviceGrid.vue';
 import SettingsModal from './components/SettingsModal.vue';
+import ToastNotification from './components/ToastNotification.vue';
 import { useCalibration } from './composables/useCalibration';
 import { saveConfig } from './services/tauriCommands';
 import { appWindow } from '@tauri-apps/api/window';
 
-const { slots, init, startTest, cleanup, globalConfig } = useCalibration();
+const toastRef = ref<InstanceType<typeof ToastNotification> | null>(null);
+
+function handleDeviceLost(slotId: number, message: string) {
+  toastRef.value?.show(message, 'error', slotId);
+}
+
+const { slots, init, startTest, cleanup, globalConfig } = useCalibration(handleDeviceLost);
 const showSettings = ref(false);
 const isFullscreen = ref(false);
 
@@ -81,6 +88,7 @@ async function handleSaveConfig(config: typeof globalConfig) {
       :initial-config="globalConfig"
       @save="handleSaveConfig"
     />
+    <ToastNotification ref="toastRef" />
   </div>
 </template>
 

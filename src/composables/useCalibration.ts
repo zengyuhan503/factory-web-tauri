@@ -59,7 +59,9 @@ const globalConfig = reactive({
 
 let listeners: (() => void)[] = [];
 
-export function useCalibration() {
+export function useCalibration(
+  onDeviceLost?: (slotId: number, message: string) => void,
+) {
   const isLoading = ref(false);
 
   async function init() {
@@ -149,6 +151,10 @@ export function useCalibration() {
           suggestion,
           isOperational: is_operational,
         };
+        // 设备在测试中离线，触发全局提示
+        if (code === 'A006' && onDeviceLost) {
+          onDeviceLost(slot_id, message);
+        }
       }
     });
     listeners.push(unlistenError);
