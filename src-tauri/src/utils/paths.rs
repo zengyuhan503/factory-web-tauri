@@ -37,6 +37,13 @@ pub fn get_resource_dir(_app_handle: &tauri::AppHandle) -> PathBuf {
     }
     #[cfg(not(debug_assertions))]
     {
-        _app_handle.path_resolver().resource_dir().unwrap_or_else(|| PathBuf::from("."))
+        let base = _app_handle.path_resolver().resource_dir().unwrap_or_else(|| PathBuf::from("."));
+        // .deb 安装后资源可能在 resource_dir/resources/ 下，探测并自动适配
+        let with_resources = base.join("resources");
+        if with_resources.exists() {
+            with_resources
+        } else {
+            base
+        }
     }
 }
