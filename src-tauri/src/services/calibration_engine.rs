@@ -505,31 +505,29 @@ impl CalibrationEngine {
         Ok(result)
     }
 
-    /// 确保标定工具 XRCalib 有执行权限
-    async fn ensure_calib_tool_executable(&self) {
-        let xrcalib_path = self.resource_dir.join("tools").join("qvr_calib").join("XRCalib");
-        if xrcalib_path.exists() {
-            match tokio::process::Command::new("chmod")
-                .arg("+x")
-                .arg(&xrcalib_path)
-                .output()
-                .await
-            {
-                Ok(o) if o.status.success() => {
-                    self.log_info(&format!("已设置标定工具执行权限: {:?}", xrcalib_path));
-                }
-                Ok(o) => {
-                    let err = String::from_utf8_lossy(&o.stderr);
-                    self.log_warn(&format!("设置标定工具权限失败: {}", err));
-                }
-                Err(e) => {
-                    self.log_warn(&format!("无法执行 chmod: {}", e));
-                }
-            }
-        } else {
-            self.log_warn(&format!("标定工具不存在: {:?}", xrcalib_path));
-        }
-    }
+    // /// 确保标定工具 XRCalib 有执行权限
+    // async fn ensure_calib_tool_executable(&self) {
+    //     let xrcalib_path = self.resource_dir.join("tools").join("qvr_calib").join("XRCalib");
+    //     if xrcalib_path.exists() {
+    //         match tokio::process::Command::new(&xrcalib_path)
+    //             .output()
+    //             .await
+    //         {
+    //             Ok(o) if o.status.success() => {
+    //                 self.log_info(&format!("已设置标定工具执行权限: {:?}", xrcalib_path));
+    //             }
+    //             Ok(o) => {
+    //                 let err = String::from_utf8_lossy(&o.stderr);
+    //                 self.log_warn(&format!("设置标定工具权限失败: {}", err));
+    //             }
+    //             Err(e) => {
+    //                 self.log_warn(&format!("无法执行 chmod: {}", e));
+    //             }
+    //         }
+    //     } else {
+    //         self.log_warn(&format!("标定工具不存在: {:?}", xrcalib_path));
+    //     }
+    // }
 
     async fn run_cam_cali(
         &self,
@@ -537,7 +535,7 @@ impl CalibrationEngine {
         app: &tauri::AppHandle,
     ) -> Result<(), crate::error::CalibError> {
         // 调用前先确保标定工具有执行权限
-        self.ensure_calib_tool_executable().await;
+        // self.ensure_calib_tool_executable().await;
 
         let runner = PythonRunner::new(self.serial.clone(), self.resource_dir.clone());
         let slot_id = self.slot_id;
