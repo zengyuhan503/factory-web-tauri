@@ -1,4 +1,5 @@
 use crate::error::{parse_python_calib_error, CalibError};
+use crate::utils::paths::get_calib_result_base_dir;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -43,6 +44,7 @@ impl PythonRunner {
             .arg(&script_path)
             .args(args)
             .env("ANDROID_SERIAL", &self.serial)
+            .env("SKYCALIB_RESULT_DIR", get_calib_result_base_dir().to_string_lossy().to_string())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
