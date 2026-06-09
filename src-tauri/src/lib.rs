@@ -41,7 +41,7 @@ pub fn run() {
                                         }));
                                     }
                                 });
-                            } else if let Some(slot_id) = slot_id {
+                            } else {
                                 let _ = app_handle_for_event.emit_all("device:error", serde_json::json!({
                                     "slot_id": slot_id,
                                     "code": "Z002",
