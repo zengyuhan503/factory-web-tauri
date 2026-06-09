@@ -4,6 +4,37 @@ use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+/// 获取用户可写的日志目录
+/// 优先读取 SKYCALIB_LOG_DIR 环境变量，未设置时使用平台默认值：
+/// Linux:   ~/work/skycalib-logs
+/// Windows: %LOCALAPPDATA%\skycalib-tauri\logs
+/// 其他:    可执行文件同级目录的 logs/
+fn get_log_dir() -> PathBuf {
+    if let Ok(custom_dir) = std::env::var("SKYCALIB_LOG_DIR") {
+        return PathBuf::from(custom_dir);
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::env::var("HOME")
+            .map(|home| PathBuf::from(home).join("work/skycalib-logs"))
+            .unwrap_or_else(|_| PathBuf::from("logs"))
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("LOCALAPPDATA")
+            .map(|path| PathBuf::from(path).join("skycalib-tauri/logs"))
+            .unwrap_or_else(|_| PathBuf::from("logs"))
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    {
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.join("logs")))
+            .unwrap_or_else(|| PathBuf::from("logs"))
+    }
+}
+
 /// 设备测试日志记录器
 /// 每个设备测试对应一个独立的日志文件，命名格式: {cpu_id}_{yyyy-MM-dd-HH-mm-ss}.log
 pub struct DeviceTestLogger {
@@ -20,10 +51,7 @@ impl DeviceTestLogger {
     ///
     /// 日志文件路径: logs/{cpu_id}_{yyyy-MM-dd-HH-mm-ss}.log
     pub fn new(cpu_id: &str, serial: &str) -> Self {
-        let log_dir = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|p| p.join("logs")))
-            .unwrap_or_else(|| PathBuf::from("logs"));
+        let log_dir = get_log_dir();
         std::fs::create_dir_all(&log_dir).ok();
 
         let filename = if cpu_id.is_empty() {
@@ -204,10 +232,7 @@ pub struct DeviceLogger {
 
 impl DeviceLogger {
     pub fn new() -> Self {
-        let log_dir = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|p| p.join("logs")))
-            .unwrap_or_else(|| PathBuf::from("logs"));
+        let log_dir = get_log_dir();
         std::fs::create_dir_all(&log_dir).ok();
         std::fs::create_dir_all(log_dir.join("device")).ok();
         std::fs::create_dir_all(log_dir.join("error")).ok();
