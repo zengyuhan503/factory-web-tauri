@@ -13,10 +13,10 @@
 chmod +x scripts/*.sh
 
 # 开发/编译机器
-./scripts/install-factory-env.sh
+./install-factory-env.sh
 
 # 工厂产线机器（只运行，不编译）
-./scripts/install-runtime-env.sh
+./install-runtime-env.sh
 ```
 
 ## install-runtime-env.sh 安装内容

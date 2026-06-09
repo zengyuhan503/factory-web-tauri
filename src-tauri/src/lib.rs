@@ -46,6 +46,9 @@ pub fn run() {
                 device_manager.start_polling(app_handle).await;
             });
 
+            // Linux 桌面快捷方式（首次启动自动创建）
+            utils::create_linux_desktop_shortcut_if_needed();
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

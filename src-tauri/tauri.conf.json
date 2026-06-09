@@ -7,7 +7,11 @@
   },
   "tauri": {
     "allowlist": {
-      "all": false
+      "all": false,
+      "window": {
+        "all": false,
+        "setFullscreen": true
+      }
     },
     "bundle": {
       "active": true,
@@ -57,7 +61,7 @@
       {
         "fullscreen": false,
         "height": 800,
-        "resizable": false,
+        "resizable": true,
         "title": "SkyCalib VR设备标定工具",
         "width": 1200
       }

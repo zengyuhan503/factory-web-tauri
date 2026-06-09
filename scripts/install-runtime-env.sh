@@ -44,6 +44,12 @@ step1_system_libs() {
     log_step 1 "安装系统运行时依赖..."
     sudo apt update
 
+    # 编译工具链（Python 3.12 源码编译需要 gcc/make/ssl）
+    log_info "安装编译工具链..."
+    sudo apt install -y build-essential libssl-dev libffi-dev || {
+        log_warn "build-essential / libssl-dev / libffi-dev 安装失败，Python 编译可能无法进行"
+    }
+
     # 分两组安装，避免单个包缺失导致全部失败
 
     # ADB + 网络工具
@@ -116,10 +122,15 @@ step2_python312() {
     make -j"${ncpu}"
 
     log_info "安装到 /usr/local ..."
-    sudo make install
+    sudo make altinstall
+
+    # altinstall 不创建 python3 通用链接，避免覆盖系统 Python
+    # 清理可能残留的旧通用链接
+    sudo rm -f /usr/local/bin/python3 /usr/local/bin/python3-config \
+        /usr/local/bin/idle3 /usr/local/bin/pydoc3 /usr/local/bin/2to3
 
     cd /tmp
-    rm -rf "Python-${PYTHON_VERSION}" "${PYTHON_TARBALL}"
+    sudo rm -rf "Python-${PYTHON_VERSION}" "${PYTHON_TARBALL}"
 
     log_info "Python 3.12 安装完成: $(python3.12 --version)"
 }
