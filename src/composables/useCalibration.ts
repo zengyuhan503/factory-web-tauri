@@ -54,6 +54,7 @@ const globalConfig = reactive({
   enable_sfr: true,
   sfr_mean_avg50_min: 0.18 as number | null,
   sfr_cam_std_max: 0.05 as number | null,
+  detection_rate_threshold: 20 as number | null,
 });
 
 let listeners: (() => void)[] = [];
@@ -220,6 +221,7 @@ export function useCalibration() {
       enable_sfr: globalConfig.enable_sfr,
       sfr_mean_avg50_min: globalConfig.sfr_mean_avg50_min,
       sfr_cam_std_max: globalConfig.sfr_cam_std_max,
+      detection_rate_threshold: globalConfig.detection_rate_threshold,
     };
 
     try {

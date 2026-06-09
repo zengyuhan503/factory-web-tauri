@@ -944,7 +944,17 @@ def main():
         action="store_true",
         help="额外生成 JSON 格式报告并输出 JSON_PATH=..."
     )
+    parser.add_argument(
+        "--detection-rate-threshold",
+        type=float,
+        default=None,
+        help="标定板检测率合格率阈值(%%)。覆盖默认值 20"
+    )
     args = parser.parse_args()
+
+    # 应用外部传入的检测率阈值（覆盖默认值）
+    if args.detection_rate_threshold is not None:
+        THRESHOLDS["detection_rate"]["acceptable"] = args.detection_rate_threshold
 
     # 确定工作目录
     if args.dir:

@@ -14,6 +14,7 @@ export interface DeviceConfig {
   enable_sfr: boolean;
   sfr_mean_avg50_min: number | null;
   sfr_cam_std_max: number | null;
+  detection_rate_threshold: number | null;
 }
 
 export interface AppConfig {
@@ -28,6 +29,7 @@ export interface AppConfig {
   enable_sfr: boolean;
   sfr_mean_avg50_min: number | null;
   sfr_cam_std_max: number | null;
+  detection_rate_threshold: number | null;
 }
 
 export interface DeviceSlot {

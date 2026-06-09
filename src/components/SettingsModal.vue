@@ -15,6 +15,7 @@ interface Props {
     enable_sfr: boolean;
     sfr_mean_avg50_min: number | null;
     sfr_cam_std_max: number | null;
+    detection_rate_threshold: number | null;
   };
 }
 
@@ -162,6 +163,11 @@ function onCancel() {
             <label>SFR 摄像头间标准差阈值</label>
             <input v-model.number="form.sfr_cam_std_max" type="number" step="0.01" class="form-input" placeholder="默认 0.05" />
           </div>
+        </div>
+
+        <div class="form-group">
+          <label>标定板检测率阈值 (%)</label>
+          <input v-model.number="form.detection_rate_threshold" type="number" step="1" class="form-input" placeholder="默认 20" />
         </div>
 
         <div class="modal-actions">

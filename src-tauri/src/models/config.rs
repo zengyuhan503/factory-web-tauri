@@ -13,6 +13,7 @@ pub struct AppConfig {
     pub enable_sfr: bool,
     pub sfr_mean_avg50_min: Option<f64>,
     pub sfr_cam_std_max: Option<f64>,
+    pub detection_rate_threshold: Option<f64>,
 }
 
 impl Default for AppConfig {
@@ -29,6 +30,7 @@ impl Default for AppConfig {
             enable_sfr: true,
             sfr_mean_avg50_min: Some(0.18),
             sfr_cam_std_max: Some(0.05),
+            detection_rate_threshold: Some(20.0),
         }
     }
 }
@@ -43,6 +45,7 @@ pub struct DeviceConfig {
     pub enable_sfr: bool,
     pub sfr_mean_avg50_min: Option<f64>,
     pub sfr_cam_std_max: Option<f64>,
+    pub detection_rate_threshold: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

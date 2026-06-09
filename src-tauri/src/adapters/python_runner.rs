@@ -287,6 +287,7 @@ impl PythonRunner {
     pub async fn run_check_result_detail(
         &self,
         device_path: &str,
+        detection_rate_threshold: Option<f64>,
         on_log: impl Fn(&str),
     ) -> Result<CheckResultDetail, CalibError> {
         let dir = std::path::Path::new(device_path)
@@ -296,10 +297,14 @@ impl PythonRunner {
 
         let script_path = self.resource_dir.join("CheckResult").join("parse_calib.py");
 
-        let mut child = Command::new(&self.python_path)
-            .arg(&script_path)
+        let mut cmd = Command::new(&self.python_path);
+        cmd.arg(&script_path)
             .args(&["--dir", &dir])
-            .arg("--json-output")
+            .arg("--json-output");
+        if let Some(threshold) = detection_rate_threshold {
+            cmd.args(&["--detection-rate-threshold", &threshold.to_string()]);
+        }
+        let mut child = cmd
             .env("ANDROID_SERIAL", &self.serial)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

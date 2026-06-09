@@ -46,6 +46,7 @@ async function handleSaveConfig(config: typeof globalConfig) {
       enable_sfr: config.enable_sfr,
       sfr_mean_avg50_min: config.sfr_mean_avg50_min,
       sfr_cam_std_max: config.sfr_cam_std_max,
+      detection_rate_threshold: config.detection_rate_threshold,
     });
   } catch (e) {
     console.error('保存配置失败:', e);

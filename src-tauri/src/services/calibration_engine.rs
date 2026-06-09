@@ -602,7 +602,7 @@ impl CalibrationEngine {
         let logger_arc = self.logger.clone();
 
         let result = runner
-            .run_check_result_detail(dataset_path, move |log| {
+            .run_check_result_detail(dataset_path, self.config.detection_rate_threshold, move |log| {
                 let _ = app_clone.emit_all(
                     "device:log",
                     serde_json::json!({
@@ -1038,7 +1038,7 @@ impl CalibrationEngine {
         // 尝试运行 parse_calib.py 获取已有数据
         let runner = PythonRunner::new(self.serial.clone(), self.resource_dir.clone());
         let json_data = runner
-            .run_check_result_detail(dataset_path, |_log| {})
+            .run_check_result_detail(dataset_path, self.config.detection_rate_threshold, |_log| {})
             .await
             .ok()
             .and_then(|d| d.json_data);

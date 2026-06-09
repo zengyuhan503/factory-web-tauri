@@ -76,6 +76,9 @@ pub async fn load_config() -> Result<AppConfig, String> {
                 if let Some(v) = value.get("sfr_cam_std_max").and_then(|v| v.as_f64()) {
                     config.sfr_cam_std_max = Some(v);
                 }
+                if let Some(v) = value.get("detection_rate_threshold").and_then(|v| v.as_f64()) {
+                    config.detection_rate_threshold = Some(v);
+                }
             }
 
             // 保存更新后的配置（带新字段）
