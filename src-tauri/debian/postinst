@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+# 给标定工具添加执行权限
+chmod +x /usr/lib/skyworthxr-calib/resources/tools/qvr_calib/XRCalib
+
+#DEBHELPER#
+
+exit 0
