@@ -13,6 +13,7 @@ import argparse
 import os
 import subprocess
 import shutil
+import tempfile
 import xml.etree.ElementTree as Et
 from datetime import datetime
 
@@ -23,6 +24,20 @@ from utils import Timer
 
 RETURN_STATUS_OK = "status:ok"
 RETURN_STATUS_ERROR = "status:error"
+
+def ensure_executable(app_path):
+    """确保可执行文件有执行权限；如系统目录无写权限无法 chmod，则复制到临时目录。"""
+    if not os.path.exists(app_path):
+        return app_path
+    if os.access(app_path, os.X_OK):
+        return app_path
+    # 无执行权限，复制到临时目录后赋予权限
+    tmp_dir = tempfile.mkdtemp(prefix="skyworthxr-calib-")
+    tmp_path = os.path.join(tmp_dir, os.path.basename(app_path))
+    shutil.copy2(app_path, tmp_path)
+    os.chmod(tmp_path, 0o755)
+    print('已将标定工具复制到临时目录: %s' % tmp_path)
+    return tmp_path
 
 def is_device_attached():
     adb_get_serial()
@@ -66,6 +81,7 @@ def run_calib(soc_serial, calib_dir, global_csv_dir, calib_app, calib_config,
                         calib_details_dir, validate_robot_arm_trajectory, exclude_id)
 
     print('Running Calib')
+    calib_app = ensure_executable(calib_app)
     command = [os.path.realpath(calib_app), '--calib_config',
                os.path.realpath(local_calib_config), '--calib_dataset',
                os.path.realpath(capture_dir)]
