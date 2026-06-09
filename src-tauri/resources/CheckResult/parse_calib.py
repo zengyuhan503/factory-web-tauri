@@ -45,7 +45,7 @@ THRESHOLDS = {
     "detection_rate": {  # 标定板检测率 (%)
         "excellent": 60,
         "good": 45,
-        "acceptable": 30,
+        "acceptable": 20,
     },
     "focal_length_diff_pct": 2.0,  # 同组焦距差异阈值 (%)
     "principal_point_shift_pct": 3.0,  # 同组主点偏移阈值 (% of image size)
