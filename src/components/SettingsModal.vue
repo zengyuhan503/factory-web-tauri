@@ -102,72 +102,93 @@ function onCancel() {
       <div class="modal-content settings-modal" @click.stop>
         <h3 class="modal-title">系统设置</h3>
 
-        <div class="form-group">
-          <label>设备型号</label>
-          <select v-model="form.qvr_type" class="form-select" @change="onQvrTypeChange">
-            <option v-for="(text, key) in QVR_TYPE_TEXT" :key="key" :value="key">
-              {{ text }}
-            </option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label>RGB 摄像头</label>
-          <div class="radio-group">
-            <label class="radio-label">
-              <input v-model="form.is_rgb" type="radio" :value="true" />
-              <span>有</span>
-            </label>
-            <label class="radio-label">
-              <input v-model="form.is_rgb" type="radio" :value="false" />
-              <span>无</span>
-            </label>
+        <!-- 设备信息 -->
+        <div class="form-section">
+          <div class="form-section-title">设备信息</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>设备型号</label>
+              <select v-model="form.qvr_type" class="form-select" @change="onQvrTypeChange">
+                <option v-for="(text, key) in QVR_TYPE_TEXT" :key="key" :value="key">
+                  {{ text }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>RGB 摄像头</label>
+              <div class="radio-group">
+                <label class="radio-label">
+                  <input v-model="form.is_rgb" type="radio" :value="true" />
+                  <span>有</span>
+                </label>
+                <label class="radio-label">
+                  <input v-model="form.is_rgb" type="radio" :value="false" />
+                  <span>无</span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="form-group">
-          <label>最大文件存储数量</label>
-          <input v-model.number="form.file_max" type="number" class="form-input" min="1" />
+        <!-- 存储与检测 -->
+        <div class="form-section">
+          <div class="form-section-title">存储与检测</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>最大文件存储数量</label>
+              <input v-model.number="form.file_max" type="number" class="form-input form-input-number" min="1" />
+            </div>
+            <div class="form-group">
+              <label>标定板检测率阈值 (%)</label>
+              <input v-model.number="form.detection_rate_threshold" type="number" step="1" class="form-input form-input-number" placeholder="默认 20" />
+            </div>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label>6DOF 覆盖率阈值 (%)</label>
-          <input v-model.number="form.verify_dof" type="number" class="form-input" placeholder="可选" />
+        <!-- 覆盖率阈值 -->
+        <div class="form-section">
+          <div class="form-section-title">覆盖率阈值</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>6DOF 覆盖率 (%)</label>
+              <input v-model.number="form.verify_dof" type="number" class="form-input form-input-number" placeholder="可选" />
+            </div>
+            <div class="form-group">
+              <label>RGB 覆盖率 (%)</label>
+              <input v-model.number="form.verify_rgb" type="number" class="form-input form-input-number" placeholder="可选" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>TOF 覆盖率 (%)</label>
+              <input v-model.number="form.verify_tof" type="number" class="form-input form-input-number" placeholder="可选" />
+            </div>
+            <div class="form-group"></div>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label>RGB 覆盖率阈值 (%)</label>
-          <input v-model.number="form.verify_rgb" type="number" class="form-input" placeholder="可选" />
-        </div>
-
-        <div class="form-group">
-          <label>TOF 覆盖率阈值 (%)</label>
-          <input v-model.number="form.verify_tof" type="number" class="form-input" placeholder="可选" />
-        </div>
-
-        <div class="form-group">
-          <label class="switch-label">
-            <span>开启 SFR 清晰度测试</span>
-            <input v-model="form.enable_sfr" type="checkbox" class="switch-input" />
-            <span class="switch-slider" :class="{ 'is-on': form.enable_sfr }"></span>
-          </label>
-        </div>
-
-        <div v-if="form.enable_sfr" class="sfr-thresholds">
+        <!-- SFR 清晰度测试 -->
+        <div class="form-section">
+          <div class="form-section-title">SFR 清晰度测试</div>
           <div class="form-group">
-            <label>SFR 清晰度均值阈值</label>
-            <input v-model.number="form.sfr_mean_avg50_min" type="number" step="0.01" class="form-input" placeholder="默认 0.18" />
+            <label class="switch-label">
+              <span>开启 SFR 清晰度测试</span>
+              <input v-model="form.enable_sfr" type="checkbox" class="switch-input" />
+              <span class="switch-slider" :class="{ 'is-on': form.enable_sfr }"></span>
+            </label>
           </div>
-
-          <div class="form-group">
-            <label>SFR 摄像头间标准差阈值</label>
-            <input v-model.number="form.sfr_cam_std_max" type="number" step="0.01" class="form-input" placeholder="默认 0.05" />
+          <div v-if="form.enable_sfr" class="sfr-thresholds">
+            <div class="form-row">
+              <div class="form-group">
+                <label>SFR 清晰度均值阈值</label>
+                <input v-model.number="form.sfr_mean_avg50_min" type="number" step="0.01" class="form-input form-input-number" placeholder="默认 0.18" />
+              </div>
+              <div class="form-group">
+                <label>SFR 摄像头间标准差阈值</label>
+                <input v-model.number="form.sfr_cam_std_max" type="number" step="0.01" class="form-input form-input-number" placeholder="默认 0.05" />
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div class="form-group">
-          <label>标定板检测率阈值 (%)</label>
-          <input v-model.number="form.detection_rate_threshold" type="number" step="1" class="form-input" placeholder="默认 20" />
         </div>
 
         <div class="modal-actions">
@@ -205,7 +226,7 @@ function onCancel() {
 }
 
 .settings-modal {
-  width: 420px;
+  width: 560px;
   max-height: 80vh;
   overflow-y: auto;
 }
@@ -237,26 +258,56 @@ function onCancel() {
   margin: 0 0 12px 0;
 }
 
+.form-section {
+  margin-bottom: 20px;
+}
+
+.form-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.form-row .form-group {
+  flex: 1;
+  margin-bottom: 0;
+}
+
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .form-group label {
   display: block;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: #374151;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
 }
 
 .form-select,
 .form-input {
   width: 100%;
-  padding: 8px 12px;
+  padding: 7px 10px;
   border: 1px solid #d1d5db;
-  border-radius: 8px;
+  border-radius: 6px;
   font-size: 14px;
   background: #fff;
+}
+
+.form-input-number {
+  width: auto;
+  max-width: 130px;
 }
 
 .form-select:focus,
@@ -339,9 +390,9 @@ function onCancel() {
   position: relative;
   width: 44px;
   height: 24px;
-  background: #d1d5db;
+  background: #9ca3af;
   border-radius: 12px;
-  transition: background 0.2s;
+  transition: background 0.25s ease, box-shadow 0.25s ease;
   flex-shrink: 0;
 }
 
@@ -354,21 +405,21 @@ function onCancel() {
   height: 20px;
   background: #fff;
   border-radius: 50%;
-  transition: transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
 }
 
 .switch-slider.is-on {
   background: #3b82f6;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.45);
 }
 
 .switch-slider.is-on::after {
   transform: translateX(20px);
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.35);
 }
 
 .sfr-thresholds {
-  padding-left: 16px;
-  border-left: 3px solid #e5e7eb;
-  margin-bottom: 16px;
+  margin-top: 8px;
 }
 </style>
