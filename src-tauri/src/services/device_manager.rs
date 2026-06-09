@@ -56,7 +56,7 @@ impl DeviceManager {
                                     continue;
                                 }
 
-                                // 如果槽位是 Error 或 Success 状态，说明标定刚结束，schedule_reset 会在 20 秒后处理恢复。
+                                // 如果槽位是 Error 或 Success 状态，说明标定刚结束，schedule_reset 会在 10 秒后处理恢复。
                                 // 此时不清空 serial，避免设备重启期间被分配到其他槽位。
                                 if slot.status == SlotStatus::Error || slot.status == SlotStatus::Success {
                                     log::warn!("槽位 {} 设备 {} 断开（状态 {:?}），等待 schedule_reset 处理", slot.slot_id, serial, slot.status);
