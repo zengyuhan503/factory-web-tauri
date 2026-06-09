@@ -66,6 +66,9 @@ pub struct DeviceSlot {
     /// 测试中设备断开时，是否已经发送过错误通知（避免重复弹窗）
     #[serde(skip)]
     pub disconnect_notified: bool,
+    /// 设备是否正在执行主动 reboot（避免 reboot 期间的正常断连被误判为设备离线）
+    #[serde(skip)]
+    pub rebooting: bool,
 }
 
 impl Default for DeviceSlot {
@@ -80,6 +83,7 @@ impl Default for DeviceSlot {
             hint: "".to_string(),
             result: SlotResult::Pending,
             disconnect_notified: false,
+            rebooting: false,
         }
     }
 }
@@ -99,5 +103,6 @@ impl DeviceSlot {
         self.hint = "".to_string();
         self.result = SlotResult::Pending;
         self.disconnect_notified = false;
+        self.rebooting = false;
     }
 }

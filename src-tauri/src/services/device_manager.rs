@@ -30,6 +30,11 @@ impl DeviceManager {
                         if let Some(ref serial) = slot.serial {
                             let still_connected = devices.iter().any(|d| d.serial == *serial);
                             if !still_connected {
+                                // 如果设备正在主动 reboot，跳过断开检测（reboot 期间的断连是正常的）
+                                if slot.rebooting {
+                                    continue;
+                                }
+
                                 // 如果槽位正在运行标定流程，发送错误事件并将状态改为 Error
                                 if slot.status == SlotStatus::Running {
                                     if !slot.disconnect_notified {

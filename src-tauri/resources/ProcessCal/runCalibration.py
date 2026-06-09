@@ -26,17 +26,19 @@ RETURN_STATUS_OK = "status:ok"
 RETURN_STATUS_ERROR = "status:error"
 
 def ensure_executable(app_path):
-    """确保可执行文件有执行权限；如系统目录无写权限无法 chmod，则复制到临时目录。"""
+    """确保可执行文件有执行权限；如系统目录无写权限无法 chmod，则复制整个目录到临时目录。"""
     if not os.path.exists(app_path):
         return app_path
     if os.access(app_path, os.X_OK):
         return app_path
-    # 无执行权限，复制到临时目录后赋予权限
+    # 无执行权限，复制整个 qvr_calib 目录（保留 XRCalib 的依赖库和配置文件）
+    app_dir = os.path.dirname(os.path.abspath(app_path))
     tmp_dir = tempfile.mkdtemp(prefix="skyworthxr-calib-")
-    tmp_path = os.path.join(tmp_dir, os.path.basename(app_path))
-    shutil.copy2(app_path, tmp_path)
+    tmp_app_dir = os.path.join(tmp_dir, os.path.basename(app_dir))
+    shutil.copytree(app_dir, tmp_app_dir)
+    tmp_path = os.path.join(tmp_app_dir, os.path.basename(app_path))
     os.chmod(tmp_path, 0o755)
-    print('已将标定工具复制到临时目录: %s' % tmp_path)
+    print('已将标定工具目录复制到临时目录: %s' % tmp_app_dir)
     return tmp_path
 
 def is_device_attached():

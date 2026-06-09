@@ -92,6 +92,15 @@ impl CalibrationEngine {
         }
     }
 
+    async fn set_rebooting(&self, app: &tauri::AppHandle, rebooting: bool) {
+        if let Some(state) = app.try_state::<crate::state::AppState>() {
+            let mut slots = state.slots.lock().await;
+            if let Some(slot) = slots.get_mut(self.slot_id as usize) {
+                slot.rebooting = rebooting;
+            }
+        }
+    }
+
     pub async fn run(
         &self,
         app: tauri::AppHandle,
@@ -398,7 +407,7 @@ impl CalibrationEngine {
         println!("开始上传标定结果...");
         self.log_step_start(CalibStep::PushAndUpload);
         self.emit_step(CalibStep::PushAndUpload, &app).await;
-        let oss_url = match self.push_and_upload(&dataset_path, &serial).await {
+        let oss_url = match self.push_and_upload(&dataset_path, &serial, &app).await {
             Ok(url) => {
                 self.log_step_end(CalibStep::PushAndUpload, true);
                 url
@@ -489,9 +498,6 @@ impl CalibrationEngine {
                             "level": "info",
                         }),
                     );
-                    if let Some(ref logger) = logger_arc {
-                        logger.python_log(log);
-                    }
                 },
             )
             .await?;
@@ -624,6 +630,7 @@ impl CalibrationEngine {
         &self,
         _dataset_path: &str,
         _serial: &str,
+        app: &tauri::AppHandle,
     ) -> Result<String, crate::error::CalibError> {
         // 推送 calib 目录到设备（独立步骤）
         // 注意：calib 报告目录在 get_device_work_dir(cpu_id)/calib，不是在 dataset_path 父目录下
@@ -687,6 +694,9 @@ impl CalibrationEngine {
             .map_err(|e| e.to_calib_error())?;
         self.log_info("sync 完成");
 
+        // 设置 rebooting 标志，避免 DeviceManager 将 reboot 期间的正常断连误判为设备离线
+        self.set_rebooting(app, true).await;
+
         // reboot
         self.log_action("ADB", "执行 reboot 命令");
         match self.adb.reboot(15000).await {
@@ -694,6 +704,7 @@ impl CalibrationEngine {
                 self.log_info("设备重启命令已发送");
             }
             Err(e) => {
+                self.set_rebooting(app, false).await;
                 let err = crate::error::CalibError::RebootFailed(e.to_string());
                 self.log_calib_error(&err);
                 return Err(err);
@@ -704,9 +715,10 @@ impl CalibrationEngine {
 
         // wait for boot
         self.log_action("ADB", "等待设备重启完成");
-        match self.adb.wait_for_boot(15000, 300).await {
+        let boot_result = match self.adb.wait_for_boot(15000, 300).await {
             Ok(_) => {
                 self.log_info("设备重启完成");
+                Ok(())
             }
             Err(e) => {
                 let err = match e {
@@ -714,8 +726,15 @@ impl CalibrationEngine {
                     _ => e.to_calib_error(),
                 };
                 self.log_calib_error(&err);
-                return Err(err);
+                Err(err)
             }
+        };
+
+        // 无论 wait_for_boot 成功与否，都清除 rebooting 标志
+        self.set_rebooting(app, false).await;
+
+        if let Err(err) = boot_result {
+            return Err(err);
         }
 
         // 压缩标定结果目录

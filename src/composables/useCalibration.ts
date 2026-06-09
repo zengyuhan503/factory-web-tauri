@@ -190,6 +190,7 @@ export function useCalibration(
           slot.error = undefined;
         } else {
           Object.assign(slot, createEmptySlot(slot_id));
+          slot.error = undefined;
         }
       }
     });
