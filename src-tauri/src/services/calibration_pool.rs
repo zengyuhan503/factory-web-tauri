@@ -146,16 +146,22 @@ impl CalibrationPool {
                     log::error!("[槽位{}] 标定失败 [{}]: {}", slot_id, e.code(), e.user_message());
                     let mut slots = slots_clone.lock().await;
                     if let Some(slot) = slots.get_mut(slot_id as usize) {
+                        // 如果状态已经是 Error 且 disconnect_notified 为 true，
+                        // 说明 DeviceManager 已经处理了设备断开，不再重复发送错误事件
+                        let already_notified = slot.status == SlotStatus::Error && slot.disconnect_notified;
+
                         slot.status = SlotStatus::Error;
                         slot.step_name = format!("失败 [{}]", e.code());
                         slot.hint = e.user_message();
                         slot.result = SlotResult::Fail {
                             reason: e.user_message(),
                         };
-                    }
 
-                    let error_event = ErrorEvent::from_calib_error(slot_id, &e);
-                    let _ = app.emit_all("device:error", error_event);
+                        if !already_notified {
+                            let error_event = ErrorEvent::from_calib_error(slot_id, &e);
+                            let _ = app.emit_all("device:error", error_event);
+                        }
+                    }
                     // 标定失败20秒后恢复
                     schedule_reset(app);
                 }

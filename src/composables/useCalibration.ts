@@ -106,11 +106,14 @@ export function useCalibration(
       const { slot_id, step_name, progress, hint } = event.payload as any;
       const slot = slots.find(s => s.slotId === slot_id);
       if (slot) {
-        slot.status = 'running';
-        slot.stepName = step_name;
-        slot.progress = progress;
-        slot.hint = hint;
-        slot.error = undefined;
+        // 如果槽位已经是 error 状态（如设备离线），不再被步骤进度覆盖
+        if (slot.status !== 'error') {
+          slot.status = 'running';
+          slot.stepName = step_name;
+          slot.progress = progress;
+          slot.hint = hint;
+          slot.error = undefined;
+        }
       }
     });
     listeners.push(unlistenStep);
@@ -119,6 +122,10 @@ export function useCalibration(
       const { slot_id, success, message } = event.payload as any;
       const slot = slots.find(s => s.slotId === slot_id);
       if (slot) {
+        // 如果槽位已经是 error 状态（如设备离线），不再被完成事件覆盖
+        if (slot.status === 'error') {
+          return;
+        }
         slot.status = success ? 'success' : 'error';
         slot.result = success ? 'pass' : 'fail';
         slot.stepName = success ? '完成' : '失败';

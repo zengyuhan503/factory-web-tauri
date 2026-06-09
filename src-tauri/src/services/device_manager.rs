@@ -30,11 +30,17 @@ impl DeviceManager {
                         if let Some(ref serial) = slot.serial {
                             let still_connected = devices.iter().any(|d| d.serial == *serial);
                             if !still_connected {
-                                // 如果槽位正在运行标定流程，发送一次错误事件并继续等待标定任务结束
+                                // 如果槽位正在运行标定流程，发送错误事件并将状态改为 Error
                                 if slot.status == SlotStatus::Running {
                                     if !slot.disconnect_notified {
-                                        log::warn!("槽位 {} 设备 {} 在标定过程中断开，等待标定任务结束", slot.slot_id, serial);
+                                        log::warn!("槽位 {} 设备 {} 在标定过程中断开", slot.slot_id, serial);
                                         slot.disconnect_notified = true;
+                                        slot.status = SlotStatus::Error;
+                                        slot.step_name = "失败 [A006]".to_string();
+                                        slot.hint = "设备在测试中离线，请检查USB连接".to_string();
+                                        slot.result = crate::models::SlotResult::Fail {
+                                            reason: "设备在测试中离线".to_string(),
+                                        };
                                         let _ = app.emit_all(
                                             "device:error",
                                             serde_json::json!({
@@ -50,6 +56,13 @@ impl DeviceManager {
                                     continue;
                                 }
 
+                                // 如果槽位是 Error 或 Success 状态，说明标定刚结束，schedule_reset 会在 20 秒后处理恢复。
+                                // 此时不清空 serial，避免设备重启期间被分配到其他槽位。
+                                if slot.status == SlotStatus::Error || slot.status == SlotStatus::Success {
+                                    log::warn!("槽位 {} 设备 {} 断开（状态 {:?}），等待 schedule_reset 处理", slot.slot_id, serial, slot.status);
+                                    continue;
+                                }
+
                                 log::warn!("槽位 {} 设备 {} 断开", slot.slot_id, serial);
                                 slot.serial = None;
                                 slot.cpu_id = None;
@@ -58,6 +71,7 @@ impl DeviceManager {
                                 slot.step_name = "待连接".to_string();
                                 slot.hint = "".to_string();
                                 slot.result = crate::models::SlotResult::Pending;
+                                slot.disconnect_notified = false;
 
                                 let _ = app.emit_all(
                                     "device:disconnected",
