@@ -761,6 +761,142 @@ def generate_report(device_uid, cameras, imu, log_data, xml_missing_checks=None)
     return "\n".join(lines)
 
 
+def build_json_report(device_uid, cameras, imu, log_data, xml_missing_checks, fail_codes, overall):
+    """构建与 Rust 端 CalibDetail 结构匹配的 JSON 数据。"""
+    import json
+
+    # results.intrinsic
+    intrinsic_results = []
+    for name in sorted(cameras, key=lambda n: cameras[n]["id"]):
+        if name in log_data.get("intrinsic", {}):
+            d = log_data["intrinsic"][name]
+            lim = intrinsic_rms_limit(name)
+            ok = d["rms"] <= lim
+            intrinsic_results.append({
+                "camera": name,
+                "rms": d["rms"],
+                "threshold": lim,
+                "result": "PASS" if ok else "FAIL",
+            })
+
+    # results.extrinsic
+    extrinsic_results = []
+    ext = log_data.get("extrinsic", {})
+    for stage in [
+        "CalibrateIMU-robust-biasConstraint-Trajectory-Extrinsics-RSPrior",
+        "Full-Extrinsics+Intrinsics-Extrinsics",
+        "CalibrateIMU-robust-Trajectory-Extrinsics-Intrinsics-Full",
+    ]:
+        if stage in ext:
+            rms = ext[stage]["rms"]
+            if stage == "Full-Extrinsics+Intrinsics-Extrinsics":
+                lim = THRESHOLDS["full_extrinsics_intrinsics_rms_max"]
+                ok = rms < lim
+                extrinsic_results.append({
+                    "stage": stage,
+                    "rms": rms,
+                    "threshold": lim,
+                    "strict_less": True,
+                    "result": "PASS" if ok else "FAIL",
+                })
+            else:
+                lim = THRESHOLDS["joint_rms"]["acceptable"]
+                ok = rms <= lim
+                extrinsic_results.append({
+                    "stage": stage,
+                    "rms": rms,
+                    "threshold": lim,
+                    "strict_less": False,
+                    "result": "PASS" if ok else "FAIL",
+                })
+
+    # results.consistency + consistency items
+    consistency_results = []
+    consistency_items = []
+    pairs = [
+        ("trackingA", "trackingB", "Tracking 组"),
+        ("ctrl-trackingA", "ctrl-trackingB", "Ctrl-Tracking 组"),
+        ("rgb-left", "rgb-right", "RGB 组"),
+    ]
+    for n1, n2, label in pairs:
+        if n1 not in cameras or n2 not in cameras:
+            continue
+        c1, c2 = cameras[n1], cameras[n2]
+        fl1, fl2 = c1["focal_length"][0], c2["focal_length"][0]
+        fl_diff_pct = abs(fl1 - fl2) / ((fl1 + fl2) / 2) * 100
+        pp1, pp2 = c1["principal_point"], c2["principal_point"]
+        pp_shift = (abs(pp1[0] - pp2[0]), abs(pp1[1] - pp2[1]))
+        img_size = max(c1["size"])
+        pp_shift_pct = math.sqrt(pp_shift[0] ** 2 + pp_shift[1] ** 2) / img_size * 100
+
+        consistency = "GOOD"
+        if fl_diff_pct > THRESHOLDS["focal_length_diff_pct"]:
+            consistency = "POOR"
+        if pp_shift_pct > THRESHOLDS["principal_point_shift_pct"]:
+            consistency = "ACCEPTABLE" if consistency == "GOOD" else consistency
+
+        consistency_results.append({
+            "label": label,
+            "fl_diff_pct": fl_diff_pct,
+            "pp_shift_str": f"({pp_shift[0]:.1f}, {pp_shift[1]:.1f})",
+            "result": consistency,
+        })
+        consistency_items.append({
+            "label": label,
+            "fl_diff_pct": fl_diff_pct,
+            "pp_shift_str": f"({pp_shift[0]:.1f}, {pp_shift[1]:.1f})",
+            "ok": consistency == "GOOD",
+        })
+
+    # results.imu_bias
+    imu_bias_results = []
+    if "aBias" in imu:
+        ab_max = THRESHOLDS["accel_bias_max"]
+        for i, v in enumerate(imu["aBias"]):
+            imu_bias_results.append({
+                "item": f"Accel bias[{i}]",
+                "value": v,
+                "threshold": ab_max,
+                "result": "PASS" if abs(v) <= ab_max else "FAIL",
+            })
+    if "wBias" in imu:
+        wb_max = THRESHOLDS["gyro_bias_max"]
+        for i, v in enumerate(imu["wBias"]):
+            imu_bias_results.append({
+                "item": f"Gyro bias[{i}]",
+                "value": v,
+                "threshold": wb_max,
+                "result": "PASS" if abs(v) <= wb_max else "FAIL",
+            })
+
+    # results.xml_checks
+    xml_checks = []
+    for item in (xml_missing_checks or []):
+        xml_checks.append({
+            "item": item,
+            "exists": False,
+            "result": "FAIL",
+        })
+
+    return {
+        "device_uid": device_uid,
+        "cameras": cameras,
+        "imu": imu,
+        "log_data": log_data,
+        "consistency": consistency_items,
+        "xml_missing_checks": xml_missing_checks or [],
+        "results": {
+            "intrinsic": intrinsic_results,
+            "extrinsic": extrinsic_results,
+            "consistency": consistency_results,
+            "imu_bias": imu_bias_results,
+            "xml_checks": xml_checks,
+        },
+        "overall": overall,
+        "fail_codes": fail_codes,
+    }
+
+
 # ─────────────────────────── 主入口 ──────────────────────────────────
 def main():
     """主函数。
@@ -802,6 +938,11 @@ def main():
         type=str,
         default=None,
         help="指定包含 device_calibration.xml 和 Calib.log 的目录。默认为脚本所在目录"
+    )
+    parser.add_argument(
+        "--json-output",
+        action="store_true",
+        help="额外生成 JSON 格式报告并输出 JSON_PATH=..."
     )
     args = parser.parse_args()
 
@@ -876,6 +1017,22 @@ def main():
     if fail_codes:
         print(f"FAIL_CODES={','.join(str(c) for c in fail_codes)}")
     print(f"EXIT_CODE={exit_code}")
+
+    # 生成 JSON 报告（当传入 --json-output 时）
+    if args.json_output:
+        try:
+            json_data = build_json_report(
+                device_uid, cameras, imu, log_data,
+                xml_missing_checks, fail_codes, overall,
+            )
+            json_path = os.path.join(work_dir, "calib_parse_report.json")
+            with open(json_path, "w", encoding="utf-8") as f:
+                import json as _json
+                _json.dump(json_data, f, ensure_ascii=False, indent=2)
+            print(f"JSON_PATH={json_path}")
+        except Exception as exc:
+            print(f"JSON 报告生成失败: {exc}")
+
     return exit_code
 
 

@@ -345,7 +345,8 @@ impl CalibrationEngine {
         self.emit_step(CalibStep::CheckResult, &app).await;
         let check_detail = match self.run_check_result_detail(&dataset_path, &app).await {
             Ok(detail) => {
-                self.log_step_end(CalibStep::CheckResult, true);
+                let success = detail.status == CheckStatus::Pass;
+                self.log_step_end(CalibStep::CheckResult, success);
                 detail
             }
             Err(e) => {

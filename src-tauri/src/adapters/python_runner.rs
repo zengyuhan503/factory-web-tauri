@@ -403,6 +403,13 @@ impl PythonRunner {
             None
         };
 
+        // 如果脚本执行出错（非 PASS/FAIL 判定，而是执行异常），返回 Err
+        if check_status == CheckStatus::Error {
+            return Err(crate::error::CalibError::CheckResultFailed(
+                "标定结果判定执行错误".to_string()
+            ));
+        }
+
         Ok(CheckResultDetail {
             status: check_status,
             failures,
