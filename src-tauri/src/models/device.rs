@@ -63,6 +63,9 @@ pub struct DeviceSlot {
     pub step_name: String,
     pub hint: String,
     pub result: SlotResult,
+    /// 测试中设备断开时，是否已经发送过错误通知（避免重复弹窗）
+    #[serde(skip)]
+    pub disconnect_notified: bool,
 }
 
 impl Default for DeviceSlot {
@@ -76,6 +79,7 @@ impl Default for DeviceSlot {
             step_name: "待连接".to_string(),
             hint: "".to_string(),
             result: SlotResult::Pending,
+            disconnect_notified: false,
         }
     }
 }
@@ -94,5 +98,6 @@ impl DeviceSlot {
         self.step_name = "待连接".to_string();
         self.hint = "".to_string();
         self.result = SlotResult::Pending;
+        self.disconnect_notified = false;
     }
 }

@@ -101,6 +101,7 @@ impl CalibrationPool {
                         slot.step_name = "已连接".to_string();
                         slot.hint = "点击启动按钮开始标定".to_string();
                         slot.result = SlotResult::Pending;
+                        slot.disconnect_notified = false;
                         // 保留 cpu_id 和 serial
                     } else {
                         log::info!("[槽位{}] 设备 {} 已断开，20秒后重置为空槽位", slot_id, serial_clone);
@@ -111,6 +112,7 @@ impl CalibrationPool {
                         slot.step_name = "待连接".to_string();
                         slot.hint = "".to_string();
                         slot.result = SlotResult::Pending;
+                        slot.disconnect_notified = false;
                     }
                     let _ = app_handle.emit_all(
                         "device:reset",

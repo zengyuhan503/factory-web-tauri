@@ -30,20 +30,23 @@ impl DeviceManager {
                         if let Some(ref serial) = slot.serial {
                             let still_connected = devices.iter().any(|d| d.serial == *serial);
                             if !still_connected {
-                                // 如果槽位正在运行标定流程，发送错误事件并继续等待标定任务结束
+                                // 如果槽位正在运行标定流程，发送一次错误事件并继续等待标定任务结束
                                 if slot.status == SlotStatus::Running {
-                                    log::warn!("槽位 {} 设备 {} 在标定过程中断开，等待标定任务结束", slot.slot_id, serial);
-                                    let _ = app.emit_all(
-                                        "device:error",
-                                        serde_json::json!({
-                                            "slot_id": slot.slot_id,
-                                            "code": "A006",
-                                            "message": "设备在测试中离线，请检查USB连接",
-                                            "detail": format!("设备 {} 在标定过程中断开连接", serial),
-                                            "suggestion": "请检查USB线是否松动，重新插拔设备后重试",
-                                            "is_operational": true,
-                                        }),
-                                    );
+                                    if !slot.disconnect_notified {
+                                        log::warn!("槽位 {} 设备 {} 在标定过程中断开，等待标定任务结束", slot.slot_id, serial);
+                                        slot.disconnect_notified = true;
+                                        let _ = app.emit_all(
+                                            "device:error",
+                                            serde_json::json!({
+                                                "slot_id": slot.slot_id,
+                                                "code": "A006",
+                                                "message": "设备在测试中离线，请检查USB连接",
+                                                "detail": format!("设备 {} 在标定过程中断开连接", serial),
+                                                "suggestion": "请检查USB线是否松动，重新插拔设备后重试",
+                                                "is_operational": true,
+                                            }),
+                                        );
+                                    }
                                     continue;
                                 }
 
@@ -127,6 +130,7 @@ impl DeviceManager {
                                     slot.status = SlotStatus::Connected;
                                     slot.step_name = "已连接".to_string();
                                     slot.hint = "点击启动按钮开始标定".to_string();
+                                    slot.disconnect_notified = false;
 
                                     let _ = app.emit_all(
                                         "device:connected",
