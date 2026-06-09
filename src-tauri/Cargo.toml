@@ -1,7 +1,7 @@
 [package]
-name = "skycalib-tauri"
+name = "skyworthxr-calib"
 version = "2.0.0"
-description = "SkyCalib VR设备标定工具 - Tauri版"
+description = "SkyCalib VR设备标定工具 "
 authors = ["Skyworth XR"]
 edition = "2021"
 rust-version = "1.70"
