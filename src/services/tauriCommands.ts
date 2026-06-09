@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/tauri';
-import { emit } from '@tauri-apps/api/event';
 
 export interface DeviceConfig {
   is_rgb: boolean;
@@ -45,8 +44,8 @@ export interface DeviceSlot {
 
 export async function startDeviceTest(slotId: number, config: DeviceConfig): Promise<void> {
   const args = { slot_id: slotId, config };
-  console.log('[tauriCommands] emit start_device_test with args:', JSON.stringify(args));
-  await emit('start_device_test', args);
+  console.log('[tauriCommands] invoke start_device_test with args:', JSON.stringify(args));
+  await invoke('start_device_test', args);
 }
 
 export async function getSlotStatus(): Promise<DeviceSlot[]> {
