@@ -1,8 +1,10 @@
 use std::path::PathBuf;
 
-/// 统一工作基目录：开发和生产模式都使用 /home/work/factory-app/
+/// 统一工作基目录：放在用户 home 目录下的 work/factory-app/
 pub fn get_work_base_dir() -> PathBuf {
-    PathBuf::from("/home/work/factory-app")
+    std::env::var("HOME")
+        .map(|home| PathBuf::from(home).join("work/factory-app"))
+        .unwrap_or_else(|_| PathBuf::from("/home/work/factory-app"))
 }
 
 /// 获取标定结果根目录
