@@ -120,16 +120,20 @@ impl PythonRunner {
         let has_ok = logs.iter().any(|l| l.contains("status:ok"));
 
         log::info!(
-            "[PythonRunner] {} exit_code={} resolved={} has_ok={}",
-            script_name, exit_code, _resolved, has_ok
+            "[PythonRunner] {} exit_code={} resolved={} has_ok={} 日志行数={}",
+            script_name, exit_code, _resolved, has_ok, logs.len()
         );
 
         // 如果脚本已明确返回 status:ok，忽略 exit code（某些脚本 exit code 非 0 但有成功输出）
         if exit_code != 0 && !has_ok {
-            log::warn!(
-                "[PythonRunner] {} 失败，未检测到 status:ok，日志:\n{}",
-                script_name,
+            let log_preview = if logs.is_empty() {
+                "[无输出]".to_string()
+            } else {
                 logs.join("\n")
+            };
+            log::warn!(
+                "[PythonRunner] {} 失败，脚本: {:?}，参数: {:?}，退出码: {}，日志:\n{}",
+                script_name, script_path, args, exit_code, log_preview
             );
             return Err(parse_python_calib_error(script_name, &logs));
         }
