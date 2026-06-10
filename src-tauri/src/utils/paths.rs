@@ -45,6 +45,17 @@ pub fn get_log_dir() -> PathBuf {
     get_work_base_dir().join("logs")
 }
 
+/// 确保工作目录存在，失败时返回错误
+pub fn ensure_work_dir() -> Result<PathBuf, String> {
+    let dir = get_work_base_dir();
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| {
+            format!("创建工作目录失败 {:?}: {}。请检查磁盘空间和写入权限。", dir, e)
+        })?;
+    }
+    Ok(dir)
+}
+
 /// 递归复制目录
 pub fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dst)?;

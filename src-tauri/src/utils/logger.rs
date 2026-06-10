@@ -29,8 +29,13 @@ impl DeviceTestLogger {
     ///
     /// 日志文件路径: logs/{cpu_id}_{yyyy-MM-dd-HH-mm-ss}.log
     pub fn new(cpu_id: &str, serial: &str) -> Self {
-        let log_dir = get_log_dir();
-        std::fs::create_dir_all(&log_dir).ok();
+        let mut log_dir = get_log_dir();
+        // 尝试创建日志目录，失败时使用 /tmp 作为 fallback
+        if let Err(e) = std::fs::create_dir_all(&log_dir) {
+            log::warn!("创建日志目录 {:?} 失败: {}，使用 /tmp fallback", log_dir, e);
+            log_dir = PathBuf::from("/tmp/skyworthxr-calib-logs");
+            let _ = std::fs::create_dir_all(&log_dir);
+        }
 
         let filename = if cpu_id.is_empty() {
             format!("{}_{}.log", serial, chrono::Local::now().format("%Y-%m-%d-%H-%M-%S"))
@@ -44,7 +49,9 @@ impl DeviceTestLogger {
             .create(true)
             .append(true)
             .open(&log_path)
-            .expect("无法创建日志文件");
+            .unwrap_or_else(|e| {
+                panic!("创建日志文件 {:?} 失败: {}。请检查磁盘空间和目录权限。", log_path, e)
+            });
 
         let writer = Mutex::new(BufWriter::new(file));
 

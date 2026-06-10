@@ -65,31 +65,43 @@ pub fn run() {
             // 生产模式：将资源从系统目录复制到用户工作目录（解决 /usr/lib/ 无写权限问题）
             #[cfg(not(debug_assertions))]
             {
-                let work_dir = utils::paths::get_work_base_dir();
+                let work_dir = match utils::paths::ensure_work_dir() {
+                    Ok(dir) => dir,
+                    Err(e) => {
+                        log::error!("启动失败: {}", e);
+                        return Err(Box::new(std::io::Error::new(
+                            std::io::ErrorKind::PermissionDenied, e
+                        )));
+                    }
+                };
                 let user_resources = work_dir.join("resources");
                 if !user_resources.join("ProcessCal").exists() {
                     // 使用硬编码路径，不依赖 resource_dir()（避免 identifier/name 不匹配问题）
                     let system_resources = std::path::PathBuf::from("/usr/lib/skyworthxr-calib/resources");
                     if system_resources.exists() {
                         log::info!("首次启动，复制资源到用户目录: {:?} -> {:?}", system_resources, user_resources);
-                        if let Err(e) = std::fs::create_dir_all(&work_dir) {
-                            log::warn!("创建工作目录失败: {}", e);
-                        }
                         if let Err(e) = utils::paths::copy_dir_recursive(&system_resources, &user_resources) {
-                            log::warn!("复制资源目录失败: {}", e);
-                        } else {
-                            // 设置 XRCalib 执行权限
-                            let xrcalib = user_resources.join("tools").join("qvr_calib").join("XRCalib");
-                            if xrcalib.exists() {
-                                let _ = std::process::Command::new("chmod")
-                                    .arg("+x")
-                                    .arg(&xrcalib)
-                                    .output();
-                            }
-                            log::info!("资源复制完成");
+                            log::error!("复制资源目录失败: {}。请检查磁盘空间。", e);
+                            return Err(Box::new(std::io::Error::new(
+                                std::io::ErrorKind::Other,
+                                format!("复制资源目录失败: {}", e)
+                            )));
                         }
+                        // 设置 XRCalib 执行权限
+                        let xrcalib = user_resources.join("tools").join("qvr_calib").join("XRCalib");
+                        if xrcalib.exists() {
+                            let _ = std::process::Command::new("chmod")
+                                .arg("+x")
+                                .arg(&xrcalib)
+                                .output();
+                        }
+                        log::info!("资源复制完成");
                     } else {
-                        log::warn!("系统资源目录不存在: {:?}", system_resources);
+                        log::error!("系统资源目录不存在: {:?}。请重新安装应用。", system_resources);
+                        return Err(Box::new(std::io::Error::new(
+                            std::io::ErrorKind::NotFound,
+                            format!("系统资源目录不存在: {:?}", system_resources)
+                        )));
                     }
                 }
             }
