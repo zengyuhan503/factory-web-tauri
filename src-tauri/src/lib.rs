@@ -62,6 +62,39 @@ pub fn run() {
                 device_manager.start_polling(app_handle).await;
             });
 
+            // 生产模式：将资源从系统目录复制到用户工作目录（解决 /usr/lib/ 无写权限问题）
+            #[cfg(not(debug_assertions))]
+            {
+                let work_dir = utils::paths::get_work_base_dir();
+                let user_resources = work_dir.join("resources");
+                if !user_resources.join("ProcessCal").exists() {
+                    let system_resources = app.path_resolver()
+                        .resource_dir()
+                        .unwrap_or_else(|| std::path::PathBuf::from("/usr/lib/skyworthxr-calib/resources"));
+                    if system_resources.exists() {
+                        log::info!("首次启动，复制资源到用户目录: {:?} -> {:?}", system_resources, user_resources);
+                        if let Err(e) = std::fs::create_dir_all(&work_dir) {
+                            log::warn!("创建工作目录失败: {}", e);
+                        }
+                        if let Err(e) = utils::paths::copy_dir_recursive(&system_resources, &user_resources) {
+                            log::warn!("复制资源目录失败: {}", e);
+                        } else {
+                            // 设置 XRCalib 执行权限
+                            let xrcalib = user_resources.join("tools").join("qvr_calib").join("XRCalib");
+                            if xrcalib.exists() {
+                                let _ = std::process::Command::new("chmod")
+                                    .arg("+x")
+                                    .arg(&xrcalib)
+                                    .output();
+                            }
+                            log::info!("资源复制完成");
+                        }
+                    } else {
+                        log::warn!("系统资源目录不存在: {:?}", system_resources);
+                    }
+                }
+            }
+
             // Linux 桌面快捷方式（首次启动自动创建）
             utils::create_linux_desktop_shortcut_if_needed();
 

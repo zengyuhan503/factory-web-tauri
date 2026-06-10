@@ -13,7 +13,6 @@ import argparse
 import os
 import subprocess
 import shutil
-import tempfile
 import xml.etree.ElementTree as Et
 from datetime import datetime
 
@@ -24,22 +23,6 @@ from utils import Timer
 
 RETURN_STATUS_OK = "status:ok"
 RETURN_STATUS_ERROR = "status:error"
-
-def ensure_executable(app_path):
-    """确保可执行文件有执行权限；如系统目录无写权限无法 chmod，则复制整个目录到临时目录。"""
-    if not os.path.exists(app_path):
-        return app_path
-    if os.access(app_path, os.X_OK):
-        return app_path
-    # 无执行权限，复制整个 qvr_calib 目录（保留 XRCalib 的依赖库和配置文件）
-    app_dir = os.path.dirname(os.path.abspath(app_path))
-    tmp_dir = tempfile.mkdtemp(prefix="skyworthxr-calib-")
-    tmp_app_dir = os.path.join(tmp_dir, os.path.basename(app_dir))
-    shutil.copytree(app_dir, tmp_app_dir)
-    tmp_path = os.path.join(tmp_app_dir, os.path.basename(app_path))
-    os.chmod(tmp_path, 0o755)
-    print('已将标定工具目录复制到临时目录: %s' % tmp_app_dir)
-    return tmp_path
 
 def is_device_attached():
     adb_get_serial()
@@ -83,7 +66,6 @@ def run_calib(soc_serial, calib_dir, global_csv_dir, calib_app, calib_config,
                         calib_details_dir, validate_robot_arm_trajectory, exclude_id)
 
     print('Running Calib')
-    calib_app = ensure_executable(calib_app)
     command = [os.path.realpath(calib_app), '--calib_config',
                os.path.realpath(local_calib_config), '--calib_dataset',
                os.path.realpath(capture_dir)]
@@ -100,16 +82,6 @@ def run_calib(soc_serial, calib_dir, global_csv_dir, calib_app, calib_config,
         print('Calibration failed')
         failure_log_string = " "
         failure_log = os.path.join(calib_details_dir, 'failureReport.log')
-
-        # 输出 Calib.log 关键内容，帮助诊断
-        calib_log = os.path.join(calib_dir, 'Calib.log')
-        if os.path.exists(calib_log):
-            with open(calib_log, 'r') as f:
-                calib_log_content = f.read()
-                if calib_log_content.strip():
-                    print('=== XRCalib Calib.log (前2000字符) ===')
-                    print(calib_log_content[:2000])
-                    print('=== Calib.log 结束 ===')
 
         if os.path.exists(failure_log):
             with open(failure_log, 'r') as f:
