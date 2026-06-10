@@ -68,9 +68,8 @@ pub fn run() {
                 let work_dir = utils::paths::get_work_base_dir();
                 let user_resources = work_dir.join("resources");
                 if !user_resources.join("ProcessCal").exists() {
-                    let system_resources = app.path_resolver()
-                        .resource_dir()
-                        .unwrap_or_else(|| std::path::PathBuf::from("/usr/lib/skyworthxr-calib/resources"));
+                    // 使用硬编码路径，不依赖 resource_dir()（避免 identifier/name 不匹配问题）
+                    let system_resources = std::path::PathBuf::from("/usr/lib/skyworthxr-calib/resources");
                     if system_resources.exists() {
                         log::info!("首次启动，复制资源到用户目录: {:?} -> {:?}", system_resources, user_resources);
                         if let Err(e) = std::fs::create_dir_all(&work_dir) {

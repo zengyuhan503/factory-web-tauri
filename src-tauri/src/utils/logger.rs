@@ -5,34 +5,12 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 /// 获取用户可写的日志目录
-/// 优先读取 SKYCALIB_LOG_DIR 环境变量，未设置时使用平台默认值：
-/// Linux:   ~/work/skycalib-logs
-/// Windows: %LOCALAPPDATA%\skycalib-tauri\logs
-/// 其他:    可执行文件同级目录的 logs/
+/// 优先读取 SKYCALIB_LOG_DIR 环境变量，未设置时使用统一工作目录下的 logs/
 fn get_log_dir() -> PathBuf {
     if let Ok(custom_dir) = std::env::var("SKYCALIB_LOG_DIR") {
         return PathBuf::from(custom_dir);
     }
-
-    #[cfg(target_os = "linux")]
-    {
-        std::env::var("HOME")
-            .map(|home| PathBuf::from(home).join("work/skycalib-logs"))
-            .unwrap_or_else(|_| PathBuf::from("logs"))
-    }
-    #[cfg(target_os = "windows")]
-    {
-        std::env::var("LOCALAPPDATA")
-            .map(|path| PathBuf::from(path).join("skycalib-tauri/logs"))
-            .unwrap_or_else(|_| PathBuf::from("logs"))
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
-    {
-        std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|p| p.join("logs")))
-            .unwrap_or_else(|| PathBuf::from("logs"))
-    }
+    crate::utils::paths::get_log_dir()
 }
 
 /// 设备测试日志记录器

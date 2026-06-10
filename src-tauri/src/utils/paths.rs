@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-/// 统一工作基目录：开发和生产都使用 /home/ssnwt/work/skycalib/
+/// 统一工作基目录：开发和生产模式都使用 /home/work/factory-app/
 pub fn get_work_base_dir() -> PathBuf {
-    PathBuf::from("/home/ssnwt/work/skycalib")
+    PathBuf::from("/home/work/factory-app")
 }
 
 /// 获取标定结果根目录
@@ -17,7 +17,7 @@ pub fn get_device_work_dir(cpu_id: &str) -> PathBuf {
 
 /// 获取资源目录
 /// 开发模式：使用 target/debug/resources/ 或源码目录
-/// 生产模式：使用 /home/ssnwt/work/skycalib/resources/（应用启动时从系统目录复制）
+/// 生产模式：使用 /home/work/factory-app/resources/（应用启动时从系统目录复制）
 pub fn get_resource_dir(_app_handle: &tauri::AppHandle) -> PathBuf {
     #[cfg(debug_assertions)]
     {
@@ -36,6 +36,11 @@ pub fn get_resource_dir(_app_handle: &tauri::AppHandle) -> PathBuf {
     {
         get_work_base_dir().join("resources")
     }
+}
+
+/// 获取日志目录
+pub fn get_log_dir() -> PathBuf {
+    get_work_base_dir().join("logs")
 }
 
 /// 递归复制目录
