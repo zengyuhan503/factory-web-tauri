@@ -114,6 +114,7 @@ pub fn generate_json_report(
     report: &SfrReportData,
     output_dir: &Path,
 ) -> Result<String, String> {
+    std::fs::create_dir_all(output_dir).map_err(|e| e.to_string())?;
     let json_path = output_dir.join("sfr_report.json");
     let json = serde_json::to_string_pretty(report).map_err(|e| e.to_string())?;
     std::fs::write(&json_path, json).map_err(|e| e.to_string())?;
@@ -125,6 +126,7 @@ pub fn generate_text_report(
     report: &SfrReportData,
     output_dir: &Path,
 ) -> Result<String, String> {
+    std::fs::create_dir_all(output_dir).map_err(|e| e.to_string())?;
     let txt_path = output_dir.join("sfr_report.txt");
     let mut content = String::new();
 

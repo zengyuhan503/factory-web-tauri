@@ -743,11 +743,8 @@ impl CalibrationEngine {
         // 压缩的是 CalibratResult/{cpu_id}/ 整个目录（包含 calib/ 报告和 qvrdataset/ 数据）
         let work_dir = crate::utils::paths::get_device_work_dir(&self.cpu_id);
         let zip_path_buf = work_dir.join("calibDetails.zip");
-        let exclude_vec: Vec<String> = if self.config.enable_sfr {
-            vec![]
-        } else {
-            vec!["sfr".to_string()]
-        };
+        // 压缩时排除 qvrdataset/（原始标定数据）
+        let exclude_vec: Vec<String> = vec!["qvrdataset".to_string()];
 
         // 统计待压缩文件数量和大小，帮助排查卡顿问题
         let (file_count, total_size) = count_files_recursive(&work_dir, &exclude_vec)

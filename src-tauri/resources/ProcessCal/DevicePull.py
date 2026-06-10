@@ -48,9 +48,13 @@ def getTheDeviceDataPath():
     print(str("等待设备插入..."))
     os.system("adb wait-for-device")
     device_id = getDeviceId()
-    if os.path.exists(CALIBRAT_RESULT_PATH + device_id):
-        shutil.rmtree(CALIBRAT_RESULT_PATH + device_id)
-    os.makedirs(CALIBRAT_RESULT_PATH + device_id)
+    device_dir = CALIBRAT_RESULT_PATH + device_id
+    qvrdataset_dir = device_dir + "/qvrdataset"
+    # 只删除 qvrdataset 子目录，保留 sfr/ 报告等其他数据
+    if os.path.exists(qvrdataset_dir):
+        shutil.rmtree(qvrdataset_dir)
+    if not os.path.exists(device_dir):
+        os.makedirs(device_dir)
     adbPullData(device_id)
 
     if not os.path.exists(CALIBRAT_RESULT_PATH + device_id + "/qvrdataset"):
