@@ -10,7 +10,12 @@ import fnmatch
 
 os.chdir(os.path.split(os.path.realpath(__file__))[0])
 
-CALIBRAT_RESULT_PATH = os.path.abspath(os.path.dirname(os.getcwd())) + "/CalibratResult/"
+# 优先从环境变量读取结果目录（Rust 端统一控制），fallback 到脚本旁
+_result_dir = os.environ.get("SKYCALIB_RESULT_DIR")
+if _result_dir:
+    CALIBRAT_RESULT_PATH = _result_dir.rstrip("/") + "/"
+else:
+    CALIBRAT_RESULT_PATH = os.path.abspath(os.path.dirname(os.getcwd())) + "/CalibratResult/"
 SLAM_YAML_TRANSFORM_TOOL_PATH = os.path.abspath(os.path.dirname(os.getcwd())) + "/tools/transform_result_to_slam/"
 RETURN_STATUS_ERROR = "status:error"
 
