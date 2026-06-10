@@ -9,15 +9,16 @@ fn get_exe_dir() -> PathBuf {
 }
 
 pub fn get_calib_result_base_dir() -> PathBuf {
-    #[cfg(debug_assertions)]
-    {
-        // 开发模式：放在 target/debug/CalibratResult/ 下
-        get_exe_dir().join("CalibratResult")
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        PathBuf::from("/home/ssnwt/work/skycalib/CalibratResult")
-    }
+    // #[cfg(debug_assertions)]
+    // {
+    //     // 开发模式：放在 target/debug/CalibratResult/ 下
+    //     get_exe_dir().join("CalibratResult")
+    // }
+    // #[cfg(not(debug_assertions))]
+    // {
+    //     PathBuf::from("/home/ssnwt/work/skycalib/CalibratResult")
+    // }
+     get_exe_dir().join("CalibratResult")
 }
 
 pub fn get_device_work_dir(cpu_id: &str) -> PathBuf {

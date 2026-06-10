@@ -101,6 +101,16 @@ def run_calib(soc_serial, calib_dir, global_csv_dir, calib_app, calib_config,
         failure_log_string = " "
         failure_log = os.path.join(calib_details_dir, 'failureReport.log')
 
+        # 输出 Calib.log 关键内容，帮助诊断
+        calib_log = os.path.join(calib_dir, 'Calib.log')
+        if os.path.exists(calib_log):
+            with open(calib_log, 'r') as f:
+                calib_log_content = f.read()
+                if calib_log_content.strip():
+                    print('=== XRCalib Calib.log (前2000字符) ===')
+                    print(calib_log_content[:2000])
+                    print('=== Calib.log 结束 ===')
+
         if os.path.exists(failure_log):
             with open(failure_log, 'r') as f:
                 failure_log_string = str(f.read())
