@@ -498,6 +498,10 @@ impl CalibrationEngine {
                             "level": "info",
                         }),
                     );
+                    
+                    if let Some(ref logger) = logger_arc {
+                        logger.python_log(log);
+                    }
                 },
             )
             .await?;
