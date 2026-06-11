@@ -101,6 +101,17 @@ function toggleDetail() {
         <div class="step-name">{{ slot.stepName }}</div>
         <div class="step-hint">{{ slot.hint }}</div>
       </div>
+
+      <!-- 子进度条（仅在有子进度时显示） -->
+      <div v-if="slot.status === 'running' && slot.subProgress !== undefined" class="sub-progress-container">
+        <div class="sub-progress-label">
+          <span>{{ slot.subStepName }}</span>
+          <span>{{ slot.subProgress }}%</span>
+        </div>
+        <div class="sub-progress-bar">
+          <div class="sub-progress-fill" :style="{ width: slot.subProgress + '%' }"></div>
+        </div>
+      </div>
     </div>
 
     <!-- 错误详情（仅在错误状态显示） -->
@@ -432,6 +443,35 @@ function toggleDetail() {
   color: #6b7280;
   min-height: 20px;
   line-height: 1.5;
+}
+
+/* 子进度条 */
+.sub-progress-container {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.sub-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.sub-progress-bar {
+  width: 100%;
+  height: 6px;
+  background-color: #e8e8e8;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.sub-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #52c41a, #73d13d);
+  border-radius: 3px;
+  transition: width 0.3s ease;
 }
 
 /* 错误详情区域 */

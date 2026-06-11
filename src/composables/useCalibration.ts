@@ -21,6 +21,8 @@ export interface SlotState {
   hint: string;
   result: 'pending' | 'pass' | 'fail';
   error?: SlotError;
+  subProgress?: number;
+  subStepName?: string;
 }
 
 // 支持最多9个槽位（九宫格）
@@ -36,6 +38,8 @@ function createEmptySlot(id: number): SlotState {
     stepName: '待连接',
     hint: '',
     result: 'pending',
+    subProgress: undefined,
+    subStepName: undefined,
   };
 }
 
@@ -108,6 +112,11 @@ export function useCalibration(
       if (slot) {
         // 如果槽位已经是 error 状态（如设备离线），不再被步骤进度覆盖
         if (slot.status !== 'error') {
+          // 步骤变化时重置子进度
+          if (slot.stepName !== step_name) {
+            slot.subProgress = undefined;
+            slot.subStepName = undefined;
+          }
           slot.status = 'running';
           slot.stepName = step_name;
           slot.progress = progress;
@@ -131,6 +140,8 @@ export function useCalibration(
         slot.stepName = success ? '完成' : '失败';
         slot.hint = message;
         slot.progress = success ? 100 : slot.progress;
+        slot.subProgress = undefined;
+        slot.subStepName = undefined;
         if (!success) {
           slot.error = {
             code: 'Z002',
@@ -151,6 +162,8 @@ export function useCalibration(
         slot.result = 'fail';
         slot.stepName = `失败 [${code}]`;
         slot.hint = message;
+        slot.subProgress = undefined;
+        slot.subStepName = undefined;
         slot.error = {
           code,
           message,
@@ -188,6 +201,8 @@ export function useCalibration(
           slot.hint = '点击启动按钮开始标定';
           slot.result = 'pending';
           slot.error = undefined;
+          slot.subProgress = undefined;
+          slot.subStepName = undefined;
         } else {
           Object.assign(slot, createEmptySlot(slot_id));
           slot.error = undefined;
@@ -195,6 +210,19 @@ export function useCalibration(
       }
     });
     listeners.push(unlistenReset);
+
+    const unlistenLog = await listen('device:log', (event) => {
+      const { slot_id, message } = event.payload as any;
+      const slot = slots.find(s => s.slotId === slot_id);
+      if (!slot) return;
+
+      const match = message.match(/\[PYTHON\]\s*\[\s*(\d+)%\s*\]/);
+      if (match) {
+        slot.subProgress = parseInt(match[1], 10);
+        slot.subStepName = '拉取标定数据';
+      }
+    });
+    listeners.push(unlistenLog);
   }
 
   function updateSlotsFromStatus(status: DeviceSlot[]) {
@@ -243,6 +271,8 @@ export function useCalibration(
       slot.progress = 0;
       slot.stepName = '初始化中...';
       slot.hint = '准备开始标定';
+      slot.subProgress = undefined;
+      slot.subStepName = undefined;
       await startDeviceTest(slotId, config);
     } catch (e) {
       console.error('启动标定失败:', e);

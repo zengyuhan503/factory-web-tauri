@@ -38,6 +38,7 @@ watch(() => props.visible, (val) => {
     showPasswordModal.value = true;
     passwordInput.value = '';
     passwordError.value = false;
+    Object.assign(form, props.initialConfig);
   }
 });
 
@@ -72,6 +73,7 @@ function onSave() {
 }
 
 function onCancel() {
+  Object.assign(form, props.initialConfig);
   emit('update:visible', false);
 }
 </script>
