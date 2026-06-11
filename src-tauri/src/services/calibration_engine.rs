@@ -689,8 +689,16 @@ impl CalibrationEngine {
         sleep(Duration::from_millis(500)).await;
 
         // copy_yaml — 将标定 YAML 复制到设备目标位置
-        self.log_action("ADB", "执行 mmi slam copy_yaml");
-        match self.adb.shell("mmi slam copy_yaml", 30000).await {
+        let prefix = match self.adb.get_command_prefix().await {
+            Ok(p) => p,
+            Err(e) => {
+                self.log_warn(&format!("获取命令前缀失败，使用默认值: {}", e));
+                "sxr".to_string()
+            }
+        };
+        let copy_yaml_cmd = format!("{}mmi slam copy_yaml", prefix);
+        self.log_action("ADB", &format!("执行 {}", copy_yaml_cmd));
+        match self.adb.shell(&copy_yaml_cmd, 30000).await {
             Ok(output) => {
                 self.log_info(&format!("copy_yaml 完成: {}", output.trim()));
             }
