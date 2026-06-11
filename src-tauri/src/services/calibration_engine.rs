@@ -688,6 +688,17 @@ impl CalibrationEngine {
         self.log_info("等待设备文件系统同步...");
         sleep(Duration::from_millis(500)).await;
 
+        // copy_yaml — 将标定 YAML 复制到设备目标位置
+        self.log_action("ADB", "执行 mmi slam copy_yaml");
+        match self.adb.shell("mmi slam copy_yaml", 30000).await {
+            Ok(output) => {
+                self.log_info(&format!("copy_yaml 完成: {}", output.trim()));
+            }
+            Err(e) => {
+                self.log_warn(&format!("copy_yaml 执行失败（非致命）: {}", e));
+            }
+        }
+
         // sync
         self.log_action("ADB", "执行 sync 命令");
         self.adb
