@@ -1,0 +1,19 @@
+%YAML:1.0
+---
+Camera_fxfycxcy_max_distance: 20.  #fxfycxcy与标准值的差异+
+Camera_fxfycxcy_min_distance: 20.   #fxfycxcy与标准值的差异-
+Imucal_K_max_distance: 2.0000000000000001e-01 
+Imucal_K_min_distance: 2.0000000000000001e-01
+Imucal_R_max_distance: 2.0000000000000001e-01
+Imucal_R_min_distance: 2.0000000000000001e-01
+Tcb_rotate_max_distance: 1.0000000000000001e-01 #tcb旋转矩阵与标准值差异+
+Tcb_rotate_min_distance: 1.0000000000000001e-01 #tcb旋转矩阵与标准值差异-
+Tcb_transition_max_distance: 2.0000000000000000e-02 #tcb平移向量与标准值差异+
+Tcb_transition_min_distance: 2.0000000000000000e-02 #tcb平移向量与标准值差异-
+VerifyCameraMatrixSelf: 1.0000000000000001e-01 #4个摄像头fxfycxcy之间的差异
+cam_Reprojection_error_max_distance: 2.0000000000000001e-01 #相机投影误差与标准值差异+
+cam_Reprojection_error_min_distance: 2.0000000000000001e-01  #相机投影误差与标准值差异-
+imu_Accelerometer_error_max_distance: 1.  #加速度误差与标准值差异+
+imu_Accelerometer_error_min_distance: 1.  #加速度误差与标准值差异-
+imu_Gyroscope_error_max_distance: 2.0000000000000001e-01 #角度误差与标准值差异+
+imu_Gyroscope_error_min_distance: 2.0000000000000001e-01 #角度误差与标准值差异-

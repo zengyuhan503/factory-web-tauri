@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<!--
+/******************************************************************************
+* Copyright (c) 2016-2021 Qualcomm Technologies, Inc.
+* All Rights Reserved
+* Confidential and Proprietary - Qualcomm Technologies, Inc.
+******************************************************************************/
+-->
+<!-- Units are meters, seconds, meters/second^2 -->
+<Configuration>
+    <XRCalib>
+        <!-- update for your device -->
+        <!-- set baseline to the distance from the reference camera (the first camera listed is the reference camera) -->
+        <Cameras>
+            <Camera name="trackingA" radialDistortionModel="FISHEYE_4_PARAMETERS" offcenterDistortion="true" />
+            <Camera name="trackingB" radialDistortionModel="FISHEYE_4_PARAMETERS" offcenterDistortion="true" baseline="0.1120" /> 
+            <Camera name="ctrl-trackingA" radialDistortionModel="FISHEYE_4_PARAMETERS" offcenterDistortion="true" baseline="0.0473" /> 
+            <Camera name="ctrl-trackingB" radialDistortionModel="FISHEYE_4_PARAMETERS" offcenterDistortion="true" baseline="0.1314" /> 
+            <Camera name="depth" radialDistortionModel="FISHEYE_4_PARAMETERS" baseline="0.0605" /> 
+        </Cameras>
+
+        <!-- use modelSelectionMode to select an appropriate camera model -->
+        <ModelSelectionMode enabled="false"/>
+        
+        <!-- global location for appending calibration CSV summaries -->
+        <Save calibrationCSVDir="..\log" />
+
+        <Validation maximumAspectRatioErrorPercent="0.43" percentCoverageRequired="97.0" />
+
+        <!-- set gravity magnitude if you are not in San Diego -->
+        <IMU gravity="9.7833" />
+    </XRCalib>
+    <Cake>
+        <Logging defaultLevel="debug"/>
+    </Cake>
+</Configuration>

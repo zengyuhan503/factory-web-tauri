@@ -1,0 +1,74 @@
+[tool.poetry]
+name = "imucal"
+version = "2.2.1"
+description = "A Python library to calibrate 6 DOF IMUs"
+authors = [
+    "Arne Küderle <arne.kuederle@fau.de>",
+    "Nils Roth <nils.roth@fau.de>",
+    "Robert Richer <robert.richer@fau.de"
+]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/mad-lab-fau/imucal"
+repository = "https://github.com/mad-lab-fau/imucal"
+documentation = "https://imcucal.readthedocs.io/en/latest/"
+keywords = ["sensors", "scientific", "IMU", "accelerometer"]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.7.1,<3.11"
+pandas = "^1.1.3"
+numpy = "^1.19.2"
+matplotlib = {version = "^3.3.2", optional = true}
+h5py = {version = "^3", optional = true}
+typing-extensions = ">=3.7.4"
+packaging = "^21.3"
+
+[tool.poetry.extras]
+calplot = ["matplotlib"]
+h5py = ["h5py"]
+
+[tool.poetry.dev-dependencies]
+doit = "^0.33.1"
+pytest = "^6.1.1"
+pytest-cov = "^2.10.1"
+coverage = "^5.3"
+prospector = "^1.7.6"
+black = "^22.3.0"
+sphinx-gallery = "^0.10.1"
+Sphinx = "^4.4.0"
+numpydoc = "^1.2.0"
+pydata-sphinx-theme = "^0.8.0"
+recommonmark = "^0.7.1"
+memory-profiler = "^0.58.0"
+Pillow = "^8.0.1"
+toml = "^0.10.2"
+
+[tool.black]
+line-length = 120
+target-version = ['py37']
+exclude = '''
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | docs
+    | build
+    | dist
+    | \.virtual_documents
+  )/
+)
+'''
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

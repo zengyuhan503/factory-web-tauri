@@ -1,0 +1,212 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+File_version: "1.0"
+
+Camera_type: "KannalaBrandt8"
+
+#Camera0 calibration and distortion parameters (OpenCV) 270.08794498  270.49034867  314.36056292  247.30975792
+#Camera1_fx: 234.35958513640023
+#Camera1_fy: 234.52747140097634 
+#Camera1_cx: 315.94128089393774
+#Camera1_cy: 233.25782483405553
+#Camera1_k1: -0.2071251641445347
+#Camera1_k2: -0.15576792657600758
+#Camera1_k3: 0.05398389907260627
+#Camera1_k4: -0.008105630397421279
+
+Camera1_fx: 233.96483448587875
+Camera1_fy: 233.4584325291299
+Camera1_cx: 317.07937911627556
+Camera1_cy: 236.53195816526335
+Camera1_k1: 0.20592216296402643
+Camera1_k2:  -0.16378528256232222
+Camera1_k3:  0.06724065919530858
+Camera1_k4: -0.01301365518124532
+#Camera1 calibration and distortion parameters (OpenCV) 270.08794498  270.49034867  314.36056292  247.30975792
+Camera2_fx: 234.4371625435764
+Camera2_fy: 234.20920067994157
+Camera2_cx: 318.0838115821448
+Camera2_cy: 237.277955548134
+Camera2_k1: 0.19869287126501636
+Camera2_k2: -0.14801427055418198
+Camera2_k3: 0.05202693138421848
+Camera2_k4: -0.008388680173538117
+
+
+
+
+Camera3_fx: 232.60206176100652
+Camera3_fy: 232.65166844775564
+Camera3_cx: 323.59606286697954
+Camera3_cy: 255.56255484124657
+Camera3_k1: 0.2090389328869918
+Camera3_k2: -0.1520581614903324
+Camera3_k3: 0.05243123302825176
+Camera3_k4: -0.008125575813180314
+#Camera1 calibration and distortion parameters (OpenCV) 270.08794498  270.49034867  314.36056292  247.30975792
+Camera4_fx: 237.2777818777849
+Camera4_fy: 238.2955819761836
+Camera4_cx: 319.27928364718434
+Camera4_cy: 240.26756626685034
+Camera4_k1: 0.2077592922140818
+Camera4_k2: -0.16924585732798791
+Camera4_k3: 0.06040547283735224
+Camera4_k4: -0.008955859167863836
+
+
+         
+Imucal_K_a: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 1.0014626267712268,0.0,0.0,
+           0.0,1.0004906621778265,0.0,
+           0.0,0.0,1.0008289064401705 ]
+Imucal_K_g: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 0.9877053188582502,0.0,0.0,
+          0.0,0.9832275826244989,0.0,
+          0.0,0.0,0.9810789026913016 ]
+Imucal_R_a: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 0.9996111299842867,0.005408952390418836,-0.027355658383147113,
+          -0.0051156376608487465,0.9994757163619935,-0.031970653011827666,
+          0.009343703389019343,0.020662217141037893,0.9997428509320757 ]
+Imucal_R_g: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 0.9998178981414904,0.019071494873938475,-0.0006698053492912596,
+          -0.023643208187039296,0.9995889145962121,-0.016217290864710295,
+          0.006469187253298262,0.019368494182976353,0.9997914837851769 ]
+Imucal_b_a: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -0.015845201061226,0.01494388282604131,0.12081105379956547 ]
+Imucal_b_g: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 0.00010375256940270206,-0.00011320216372007586,4.611482686655583e-06]
+# Lapping area between images
+Camera1_overlappingBegin: 0
+Camera1_overlappingEnd: 640
+
+Camera2_overlappingBegin: 0
+Camera2_overlappingEnd: 640
+
+Camera3_overlappingBegin: 0
+Camera3_overlappingEnd: 640
+
+Camera4_overlappingBegin: 0
+Camera4_overlappingEnd: 640
+
+# Camera resolution
+Camera_width: 640
+Camera_height: 480
+
+#Camera_newWidth: 320
+#Camera_newHeight: 240
+
+
+
+# Camera frames per second 
+Camera_fps: 30
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera_RGB: 1
+
+# Close/Far threshold. Baseline times.
+Stereo_ThDepth: 40.0
+
+# Transformation from body-frame (imu) to left camera
+IMU_T_c1_b: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data:   [-0.02084318 ,-0.7733952 ,  0.63358143, -0.02534858,
+            -0.98644314,  0.11908402,  0.11291114, -0.0794151,
+            -0.16277436, -0.62263863, -0.76539248 ,-0.05602398,
+            0.0, 0.0, 0.0, 1.0]
+IMU_T_c2_b: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data: [-0.01099661, -0.76742925 , 0.64103933 ,-0.02461401,
+          -0.98584576 ,-0.09893419 ,-0.135352 ,   0.00092351,
+          0.16729379, -0.63345432, -0.75547893 ,-0.03978769,
+          0.0, 0.0, 0.0, 1.0]
+
+
+IMU_T_c3_b: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data: [0.75935661,  0.3093095 , -0.57245538 , 0.06823152,
+          0.02078944, -0.89087154, -0.45377936, -0.00676706,
+          -0.65034248,  0.33267933, -0.68291956, -0.08144656,
+          0.0, 0.0, 0.0, 1.0]
+
+
+IMU_T_c4_b: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data: [0.73291195, -0.30004657,  0.61058343, -0.01285441,
+          -0.00885339, -0.90162032, -0.43243775 ,-0.0038681,
+          0.68026589,  0.31153306, -0.66346474, -0.02307426,
+          0.0, 0.0, 0.0, 1.0]
+
+# IMU noise (Use those from VINS-mono)
+IMU_NoiseGyro: 2.0077961527517466e-03 # 0.004 (VINS) # 0.00016 (TUM) # 0.00016    # rad/s^0.5 
+IMU_NoiseAcc: 2.2761017834953157e-02 # 0.04 (VINS) # 0.0028 (TUM) # 0.0028     # m/s^1.5
+IMU_GyroWalk: 1.2960092204266150e-05 # 0.000022 (VINS and TUM) rad/s^1.5
+IMU_AccWalk: 2.8065640439532409e-04 # 0.0004 (VINS) # 0.00086 # 0.00086    # m/s^2.5
+IMU_Frequency: 1000.0
+IMU_timeshift_cam_imu: 0.0000
+IMU_test_keyframe_interval: 5
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# ORB Extractor: Number of features per image
+ORBextractor_nFeatures: 300 # Tested with 1250
+
+# ORB Extractor: Scale factor between levels in the scale pyramid 	
+ORBextractor_scaleFactor: 1.5
+# ORB Extractor: Number of levels in the scale pyramid	
+ORBextractor_nLevels: 4
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast			
+ORBextractor_iniThFAST: 15
+ORBextractor_minThFAST: 7
+
+
+#atlas map
+System_SaveAtlasToFile: office.osa
+System_LoadAtlasFromFile: office.osa
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+Viewer_KeyFrameSize: 0.05
+Viewer_KeyFrameLineWidth: 1.0
+Viewer_GraphLineWidth: 0.9
+Viewer_PointSize: 2.0
+Viewer_CameraSize: 0.08
+Viewer_CameraLineWidth: 3.0
+Viewer_ViewpointX: 0.0
+Viewer_ViewpointY: -0.7
+Viewer_ViewpointZ: -3.5
+Viewer_ViewpointF: 500.0

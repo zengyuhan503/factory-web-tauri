@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<!--
+/******************************************************************************
+* Copyright (c) 2022 Qualcomm Technologies, Inc.
+* All Rights Reserved
+* Confidential and Proprietary - Qualcomm Technologies, Inc.
+******************************************************************************/
+-->
+<Configuration>
+    <XRCalib>
+        <!-- Example target config. Use command arguments --target_config c:\path\to\target-config.xml --calib_config c:\path\to\XRCalib-config.xml ... to pass both a XRCalib config and a target config to XRCalib. -->
+	<!-- Update with measurement for your targets -->
+        <DotPattern targetType="A" gravityDirection_p="1 0 0" dotSpacing="0.034945" dotsX="48" dotsY="24" apexDotIndexX="23" apexDotIndexY="13" />
+        <DotPattern targetType="B" dotSpacing="0.034945" dotsX="48" dotsY="24" apexDotIndexX="23" apexDotIndexY="13" />
+    </XRCalib>
+</Configuration>

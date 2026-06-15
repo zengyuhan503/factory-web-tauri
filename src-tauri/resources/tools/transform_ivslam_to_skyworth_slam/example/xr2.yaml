@@ -1,0 +1,141 @@
+%YAML:1.0
+---
+Camera1_cx: 3.2641244506835938e+02
+Camera1_cy: 2.3966168212890625e+02
+Camera1_fx: 2.3769285583496094e+02
+Camera1_fy: 2.3747393798828125e+02
+Camera1_k1: 2.0490568876266479e-01
+Camera1_k2: -1.5936546027660370e-01
+Camera1_k3: 5.7726498693227768e-02
+Camera1_k4: -9.2651350423693657e-03
+Camera1_overlappingBegin: 0
+Camera1_overlappingEnd: 640
+Camera2_cx: 3.2526486206054688e+02
+Camera2_cy: 2.3706083679199219e+02
+Camera2_fx: 2.3897027587890625e+02
+Camera2_fy: 2.3876367187500000e+02
+Camera2_k1: 1.9547677040100098e-01
+Camera2_k2: -1.5374618768692017e-01
+Camera2_k3: 5.8586366474628448e-02
+Camera2_k4: -1.0508076287806034e-02
+Camera2_overlappingBegin: 0
+Camera2_overlappingEnd: 640
+Camera3_cx: 3.1856753540039062e+02
+Camera3_cy: 2.4370425415039062e+02
+Camera3_fx: 2.3850057983398438e+02
+Camera3_fy: 2.3847769165039062e+02
+Camera3_k1: 2.1371161937713623e-01
+Camera3_k2: -1.8279941380023956e-01
+Camera3_k3: 7.8188568353652954e-02
+Camera3_k4: -1.6258209943771362e-02
+Camera3_overlappingBegin: 0
+Camera3_overlappingEnd: 640
+Camera4_cx: 3.2679385375976562e+02
+Camera4_cy: 2.3397143554687500e+02
+Camera4_fx: 2.3753625488281250e+02
+Camera4_fy: 2.3756759643554688e+02
+Camera4_k1: 1.9671793282032013e-01
+Camera4_k2: -1.5211260318756104e-01
+Camera4_k3: 5.5366273969411850e-02
+Camera4_k4: -9.3080019578337669e-03
+Camera4_overlappingBegin: 0
+Camera4_overlappingEnd: 640
+Camera_RGB: 1
+Camera_fps: 30
+Camera_height: 480
+Camera_type: KannalaBrandt8
+Camera_width: 640
+File_version: "1.0"
+IMU_AccWalk: 2.8065640439532409e-04
+IMU_Frequency: 1000.
+IMU_GyroWalk: 1.2960092204266150e-05
+IMU_NoiseAcc: 2.2761017834953157e-02
+IMU_NoiseGyro: 2.0077961527517466e-03
+IMU_T_c1_b: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data: [ 7.63026997e-03, -7.65438497e-01, 6.43463731e-01,
+       -9.13661264e-04, -9.88159955e-01, 9.28367004e-02, 1.22152500e-01,
+       -7.93942884e-02, -1.53237283e-01, -6.36777222e-01,
+       -7.55667388e-01, 5.07894717e-03, 0., 0., 0., 1. ]
+IMU_T_c2_b: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data: [ 2.18863762e-03, -7.63768554e-01, 6.45486653e-01,
+       -2.00355658e-03, -9.81024086e-01, -1.26783267e-01,
+       -1.46689266e-01, 2.28508264e-02, 1.93873554e-01, -6.32916808e-01,
+       -7.49552727e-01, 1.63004342e-02, 0., 0., 0., 1. ]
+IMU_T_c3_b: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data: [ 7.62461960e-01, 3.23796272e-01, -5.60185492e-01,
+       6.48139566e-02, 2.50906795e-02, -8.79920721e-01, -4.74457651e-01,
+       5.46829998e-02, -6.46546423e-01, 3.47700477e-01, -6.79030180e-01,
+       -6.94936886e-02, 0., 0., 0., 1. ]
+IMU_T_c4_b: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data: [ 7.49237835e-01, -2.95787811e-01, 5.92580914e-01,
+       -2.31267344e-02, 2.73792949e-02, -8.80132794e-01, -4.73937243e-01,
+       6.30054772e-02, 6.61734760e-01, 3.71316254e-01, -6.51330411e-01,
+       -2.83186678e-02, 0., 0., 0., 1. ]
+IMU_test_keyframe_interval: 5
+IMU_timeshift_cam_imu: 0.
+Imucal_K_a: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 9.97693717e-01, 0., 0., 0., 1.00067914e+00, 0., 0., 0.,
+       9.96907711e-01 ]
+Imucal_K_g: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 1.01106882e+00, 0., 0., 0., 1.00144362e+00, 0., 0., 0.,
+       1.00348961e+00 ]
+Imucal_R_a: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 9.99323547e-01, 3.63858081e-02, 5.34556806e-03,
+       -6.73873574e-02, 9.97688711e-01, 8.72788858e-03, 1.34104704e-02,
+       -2.43687239e-02, 9.99613106e-01 ]
+Imucal_R_g: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 9.99056041e-01, 4.32489887e-02, -4.06778324e-03,
+       -4.89339940e-02, 9.98401284e-01, 2.82895472e-02, 7.69476872e-03,
+       -2.06312481e-02, 9.99757528e-01 ]
+Imucal_b_a: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -1.21993214e-01, 6.08572476e-02, 2.80777156e-01 ]
+Imucal_b_g: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -5.62625425e-03, -8.04284122e-03, 1.87131725e-02 ]
+ORBextractor_iniThFAST: 15
+ORBextractor_minThFAST: 7
+ORBextractor_nFeatures: 300
+ORBextractor_nLevels: 4
+ORBextractor_scaleFactor: 1.5000000000000000e+00
+Stereo_ThDepth: 40.
+System_LoadAtlasFromFile: "office.osa"
+System_SaveAtlasToFile: "office.osa"
+Viewer_CameraLineWidth: 3.
+Viewer_CameraSize: 8.0000000000000002e-02
+Viewer_GraphLineWidth: 9.0000000000000002e-01
+Viewer_KeyFrameLineWidth: 1.
+Viewer_KeyFrameSize: 5.0000000000000003e-02
+Viewer_PointSize: 2.
+Viewer_ViewpointF: 500.
+Viewer_ViewpointX: 0.
+Viewer_ViewpointY: -6.9999999999999996e-01
+Viewer_ViewpointZ: -3.5000000000000000e+00
