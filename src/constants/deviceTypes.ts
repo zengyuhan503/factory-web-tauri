@@ -5,6 +5,7 @@ export const QVR_TYPE_TEXT: Record<string, string> = {
   '4': 'VQ920 + RGB摄像头',
   '5': 'VQ920 + 手势功能',
   '6': 'VQ920 + 手势功能 + RGB摄像头',
+  '11': 'VQ920 + 全局曝光RGB摄像头',
   '7': 'VQ930',
   '8': 'VQ930 + RGB摄像头',
   '9': 'VQ930 + TOF摄像头',
